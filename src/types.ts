@@ -102,6 +102,16 @@ export interface ShippingAddress {
   notes?: string;
 }
 
+export type CourierName = 'Steadfast Courier' | 'Pathao Courier' | 'RedX' | 'Paperfly';
+
+export interface CourierTrackingEvent {
+  timestamp: string;
+  status: string;
+  location?: string;
+  description: string;
+  hub?: string;
+}
+
 export interface Order {
   id: string;
   items: CartItem[];
@@ -121,7 +131,12 @@ export interface Order {
   createdAt: string;
   estimatedDelivery: string;
   courierTrackingNumber: string;
-  courierName: 'Steadfast Courier' | 'Pathao Courier' | 'Paperfly';
+  courierName: CourierName;
+  consignmentId?: string;
+  courierStatus?: string;
+  courierTrackingHistory?: CourierTrackingEvent[];
+  courierRiderName?: string;
+  courierRiderPhone?: string;
   // Advanced Fraud Detection & Order Risk Management fields
   fraudScore?: number; // 0 - 100
   riskLevel?: RiskLevel; // Low Risk, Medium Risk, High Risk
@@ -263,8 +278,9 @@ export interface CourierApiConfig {
   pathaoClientId: string;
   pathaoSecret: string;
   redxApiKey: string;
+  paperflyApiKey: string;
   autoSyncOrders: boolean;
-  activeDefaultCourier: 'Steadfast Courier' | 'Pathao Courier' | 'RedX';
+  activeDefaultCourier: CourierName;
 }
 
 export interface AbandonedCart {

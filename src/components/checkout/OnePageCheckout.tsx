@@ -31,6 +31,7 @@ import { CartItem, Coupon, Order, PaymentMethod } from '../../types';
 import { BANGLADESH_GEO_DATA, getMobileOperator, reverseGeocodeBD } from '../../data/bangladeshGeoData';
 import { formatPrice, generateOrderId, generateTrackingNumber, getDeliveryFee } from '../../utils/helpers';
 import { evaluateOrderFraudRisk } from '../../utils/fraudDetection';
+import { autoShipOrder } from '../../services/courierClient';
 
 interface OnePageCheckoutProps {
   cartItems: CartItem[];
@@ -361,6 +362,14 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
       previousDeliverySuccessRate: fraudResult.deliverySuccessRate,
       pastOrderCount: fraudResult.pastOrderCount,
     };
+
+    // Trigger automatic courier shipment creation via Bangladeshi Courier APIs
+    autoShipOrder(newOrder).then((shipment) => {
+      if (shipment && shipment.trackingNumber) {
+        newOrder.courierTrackingNumber = shipment.trackingNumber;
+        newOrder.courierName = shipment.courierName;
+      }
+    }).catch(console.error);
 
     setTimeout(() => {
       setIsSubmitting(false);

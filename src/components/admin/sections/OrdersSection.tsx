@@ -13,8 +13,9 @@ import {
   Printer,
   ShieldAlert
 } from 'lucide-react';
-import { Order, OrderStatus } from '../../../types';
+import { Order, OrderStatus, CourierName } from '../../../types';
 import { formatPrice } from '../../../utils/helpers';
+import { dispatchOrderToCourier } from '../../../services/courierClient';
 
 interface OrdersSectionProps {
   darkMode: boolean;
@@ -36,7 +37,8 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   const [paymentFilter, setPaymentFilter] = useState<string>('All');
   const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
   const [tempTrackingNum, setTempTrackingNum] = useState('');
-  const [tempCourierName, setTempCourierName] = useState<'Steadfast Courier' | 'Pathao Courier' | 'Paperfly'>('Steadfast Courier');
+  const [tempCourierName, setTempCourierName] = useState<CourierName>('Steadfast Courier');
+  const [dispatchingId, setDispatchingId] = useState<string | null>(null);
 
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
@@ -56,6 +58,21 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
       onUpdateCourierInfo(orderId, tempCourierName, tempTrackingNum);
     }
     setEditingTrackingId(null);
+  };
+
+  const handleDispatchCourierApi = async (order: Order) => {
+    setDispatchingId(order.id);
+    try {
+      const res = await dispatchOrderToCourier(order, order.courierName || 'Steadfast Courier');
+      if (res.success && onUpdateCourierInfo) {
+        onUpdateCourierInfo(order.id, res.courierName, res.trackingNumber);
+        onUpdateOrderStatus(order.id, 'Shipped');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDispatchingId(null);
+    }
   };
 
   return (
@@ -260,6 +277,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                       >
                         <option value="Steadfast Courier">Steadfast Courier</option>
                         <option value="Pathao Courier">Pathao Courier</option>
+                        <option value="RedX">RedX Logistics</option>
                         <option value="Paperfly">Paperfly</option>
                       </select>
 
