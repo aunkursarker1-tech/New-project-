@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Header } from './components/Header';
 import { HeroBanner } from './components/HeroBanner';
 import { CategoryGrid } from './components/CategoryGrid';
@@ -36,6 +37,11 @@ import { INITIAL_BLACKLISTS, INITIAL_WHITELISTS, populateOrdersWithFraudRisk } f
 import { Sparkles, Zap, Tag, Gift, SlidersHorizontal } from 'lucide-react';
 
 export default function App() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isAdminRoute = location.pathname.startsWith('/admin');
+
   // Theme & Intro State
   const [darkMode, setDarkMode] = useState(true);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
@@ -123,7 +129,29 @@ export default function App() {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(() => {
+    return window.location.pathname.startsWith('/admin');
+  });
+
+  useEffect(() => {
+    if (isAdminRoute && !isAdminOpen) {
+      setIsAdminOpen(true);
+    } else if (!isAdminRoute && isAdminOpen) {
+      setIsAdminOpen(false);
+    }
+  }, [isAdminRoute]);
+
+  const handleOpenAdmin = () => {
+    setIsAdminOpen(true);
+    if (!location.pathname.startsWith('/admin')) {
+      navigate('/admin');
+    }
+  };
+
+  const handleExitAdmin = () => {
+    setIsAdminOpen(false);
+    navigate('/');
+  };
 
   // Selected Detail Views
   const [selectedProductDetail, setSelectedProductDetail] = useState<Product | null>(null);
@@ -396,8 +424,8 @@ export default function App() {
     addToast('success', 'Settings Saved', 'Store configuration updated successfully.');
   };
 
-  // Render Full Screen Route-Based Admin Layout if admin is open
-  if (isAdminOpen) {
+  // Render Full Screen Route-Based Admin Layout if admin is open or on admin route
+  if (isAdminRoute || isAdminOpen) {
     return (
       <AdminLayout
         darkMode={darkMode}
@@ -431,7 +459,7 @@ export default function App() {
         onUpdateBanner={handleUpdateBanner}
         onDeleteBanner={handleDeleteBanner}
         onSaveSettings={handleSaveSettings}
-        onExitAdmin={() => setIsAdminOpen(false)}
+        onExitAdmin={handleExitAdmin}
       />
     );
   }
@@ -491,7 +519,7 @@ export default function App() {
           setTrackingTargetOrderId('');
           setIsOrderTrackingOpen(true);
         }}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenAdmin={handleOpenAdmin}
         selectedCategory={selectedCategory}
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
@@ -694,7 +722,7 @@ export default function App() {
         darkMode={darkMode}
         onNavigateCategory={(cat) => setSelectedCategory(cat)}
         onOpenOrderTracking={() => setIsOrderTrackingOpen(true)}
-        onOpenAdmin={() => setIsAdminOpen(true)}
+        onOpenAdmin={handleOpenAdmin}
         onReplayIntro={() => setShowWelcomeScreen(true)}
       />
 

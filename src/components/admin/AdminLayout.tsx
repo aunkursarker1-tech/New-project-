@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Product, Order, Customer, Coupon, Category, Review, Banner, StoreSettings, OrderStatus, BlacklistItem, WhitelistItem, FraudStatus } from '../../types';
 import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
@@ -93,7 +94,53 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onSaveSettings,
   onExitAdmin,
 }) => {
-  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const getTabFromPath = (): AdminTab => {
+    const subpath = location.pathname.replace(/^\/admin\/?/, '').split('/')[0].trim();
+    if (!subpath || subpath === 'dashboard') return 'dashboard';
+    
+    const validTabs: AdminTab[] = [
+      'dashboard',
+      'products',
+      'add-product',
+      'inventory-barcode',
+      'image-manager',
+      'orders',
+      'couriers',
+      'fraud',
+      'security-audit',
+      'customers',
+      'categories',
+      'coupons',
+      'reviews',
+      'banners',
+      'marketing-recovery',
+      'analytics',
+      'settings',
+    ];
+
+    return validTabs.includes(subpath as AdminTab) ? (subpath as AdminTab) : 'dashboard';
+  };
+
+  const [activeTab, setActiveTabState] = useState<AdminTab>(getTabFromPath());
+
+  useEffect(() => {
+    const currentTab = getTabFromPath();
+    if (currentTab !== activeTab) {
+      setActiveTabState(currentTab);
+    }
+  }, [location.pathname]);
+
+  const setActiveTab = (tab: AdminTab) => {
+    setActiveTabState(tab);
+    const targetPath = tab === 'dashboard' ? '/admin' : `/admin/${tab}`;
+    if (location.pathname !== targetPath) {
+      navigate(targetPath);
+    }
+  };
+
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState(false);
 
   // Editing Product state
