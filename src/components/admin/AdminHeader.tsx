@@ -10,7 +10,8 @@ import {
   ChevronDown,
   ExternalLink,
   Package,
-  AlertTriangle
+  AlertTriangle,
+  LogOut
 } from 'lucide-react';
 
 interface AdminHeaderProps {
@@ -20,6 +21,8 @@ interface AdminHeaderProps {
   lowStockCount: number;
   pendingOrdersCount: number;
   onNavigateTab: (tab: any) => void;
+  userEmail?: string;
+  onSignOut?: () => void;
 }
 
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -29,6 +32,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   lowStockCount,
   pendingOrdersCount,
   onNavigateTab,
+  userEmail = 'admin@gadgetghor.bd',
+  onSignOut,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
 
@@ -130,17 +135,30 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           )}
         </div>
 
-        {/* Admin Profile Widget */}
-        <div className={`flex items-center gap-2.5 p-1.5 pl-3 rounded-2xl border ${
-          darkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
-        }`}>
-          <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-amber-400 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xs shadow-sm">
-            AD
+        {/* Admin Profile Widget & Sign Out */}
+        <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2.5 p-1.5 px-3 rounded-2xl border ${
+            darkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
+          }`}>
+            <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-amber-400 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xs shadow-sm">
+              AD
+            </div>
+            <div className="hidden sm:block text-left">
+              <h4 className="text-xs font-black leading-none text-slate-200 truncate max-w-[140px]">{userEmail}</h4>
+              <span className="text-[9px] text-emerald-400 font-bold">Super Administrator</span>
+            </div>
           </div>
-          <div className="hidden sm:block text-left">
-            <h4 className="text-xs font-black leading-none text-slate-200">Admin Manager</h4>
-            <span className="text-[9px] text-emerald-400 font-bold">Super Administrator</span>
-          </div>
+
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              title="Sign Out of Admin"
+              className="p-2.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white border border-rose-500/20 transition-all flex items-center gap-1.5 text-xs font-bold"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden md:inline">Sign Out</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

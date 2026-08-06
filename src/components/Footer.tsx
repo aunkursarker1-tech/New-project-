@@ -5,7 +5,7 @@ interface FooterProps {
   darkMode: boolean;
   onNavigateCategory: (category: string) => void;
   onOpenOrderTracking: () => void;
-  onOpenAdmin: () => void;
+  onOpenAdmin?: () => void;
   onReplayIntro?: () => void;
 }
 
@@ -91,11 +91,6 @@ export const Footer: React.FC<FooterProps> = ({
               <a href="#shipping" className="hover:text-emerald-400 transition-colors">
                 Dhaka & Outside Shipping Rates
               </a>
-            </li>
-            <li>
-              <button onClick={onOpenAdmin} className="text-amber-400 font-bold hover:underline">
-                Admin Management Console
-              </button>
             </li>
             {onReplayIntro && (
               <li>

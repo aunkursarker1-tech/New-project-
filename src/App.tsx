@@ -13,6 +13,8 @@ import { OrderTrackingModal } from './components/OrderTrackingModal';
 import { ProductComparisonModal } from './components/ProductComparisonModal';
 import { WishlistDrawer } from './components/WishlistDrawer';
 import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminLogin } from './components/admin/AdminLogin';
+import { supabase } from './lib/supabase';
 import { CustomerReviewsSection } from './components/CustomerReviewsSection';
 import { BrandShowcase } from './components/BrandShowcase';
 import { Newsletter } from './components/Newsletter';
@@ -129,27 +131,46 @@ export default function App() {
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(() => {
-    return window.location.pathname.startsWith('/admin');
+  // Admin Auth & Route State
+  const [adminEmail, setAdminEmail] = useState<string>(() => {
+    return sessionStorage.getItem('admin_email') || 'admin@gadgetghor.bd';
+  });
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    return sessionStorage.getItem('admin_auth') === 'true';
   });
 
   useEffect(() => {
-    if (isAdminRoute && !isAdminOpen) {
-      setIsAdminOpen(true);
-    } else if (!isAdminRoute && isAdminOpen) {
-      setIsAdminOpen(false);
-    }
-  }, [isAdminRoute]);
+    // Check Supabase session on mount
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        setIsAdminAuthenticated(true);
+        setAdminEmail(session.user.email || 'admin@gadgetghor.bd');
+        sessionStorage.setItem('admin_auth', 'true');
+        if (session.user.email) sessionStorage.setItem('admin_email', session.user.email);
+      }
+    });
 
-  const handleOpenAdmin = () => {
-    setIsAdminOpen(true);
-    if (!location.pathname.startsWith('/admin')) {
-      navigate('/admin');
-    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setIsAdminAuthenticated(true);
+        setAdminEmail(session.user.email || 'admin@gadgetghor.bd');
+        sessionStorage.setItem('admin_auth', 'true');
+        if (session.user.email) sessionStorage.setItem('admin_email', session.user.email);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOutAdmin = async () => {
+    await supabase.auth.signOut();
+    setIsAdminAuthenticated(false);
+    sessionStorage.removeItem('admin_auth');
+    sessionStorage.removeItem('admin_email');
+    navigate('/admin/login');
   };
 
   const handleExitAdmin = () => {
-    setIsAdminOpen(false);
     navigate('/');
   };
 
@@ -424,8 +445,78 @@ export default function App() {
     addToast('success', 'Settings Saved', 'Store configuration updated successfully.');
   };
 
-  // Render Full Screen Route-Based Admin Layout if admin is open or on admin route
-  if (isAdminRoute || isAdminOpen) {
+  // Render Full Screen Route-Based Admin Layout if on admin route
+  if (isAdminRoute) {
+    if (location.pathname === '/admin/login') {
+      if (isAdminAuthenticated) {
+        return (
+          <AdminLayout
+            darkMode={darkMode}
+            onToggleDarkMode={() => setDarkMode(!darkMode)}
+            products={products}
+            orders={orders}
+            customers={customers}
+            coupons={coupons}
+            categories={categories}
+            reviews={reviews}
+            banners={banners}
+            settings={settings}
+            blacklists={blacklists}
+            whitelists={whitelists}
+            onAddProduct={handleAddProduct}
+            onUpdateProduct={handleUpdateProduct}
+            onDeleteProduct={handleDeleteProduct}
+            onUpdateOrderStatus={handleUpdateOrderStatus}
+            onUpdateCourierInfo={handleUpdateCourierInfo}
+            onUpdateFraudStatus={handleUpdateFraudStatus}
+            onAddBlacklist={handleAddBlacklist}
+            onRemoveBlacklist={handleRemoveBlacklist}
+            onAddWhitelist={handleAddWhitelist}
+            onRemoveWhitelist={handleRemoveWhitelist}
+            onAddCoupon={handleAddCoupon}
+            onDeleteCoupon={handleDeleteCoupon}
+            onAddCategory={handleAddCategory}
+            onUpdateCategory={handleUpdateCategory}
+            onDeleteCategory={handleDeleteCategory}
+            onAddBanner={handleAddBanner}
+            onUpdateBanner={handleUpdateBanner}
+            onDeleteBanner={handleDeleteBanner}
+            onSaveSettings={handleSaveSettings}
+            onExitAdmin={handleExitAdmin}
+            userEmail={adminEmail}
+            onSignOut={handleSignOutAdmin}
+          />
+        );
+      }
+      return (
+        <AdminLogin
+          darkMode={darkMode}
+          onLoginSuccess={(email) => {
+            setIsAdminAuthenticated(true);
+            setAdminEmail(email);
+            sessionStorage.setItem('admin_auth', 'true');
+            sessionStorage.setItem('admin_email', email);
+            navigate('/admin/dashboard');
+          }}
+        />
+      );
+    }
+
+    if (!isAdminAuthenticated) {
+      return (
+        <AdminLogin
+          darkMode={darkMode}
+          onLoginSuccess={(email) => {
+            setIsAdminAuthenticated(true);
+            setAdminEmail(email);
+            sessionStorage.setItem('admin_auth', 'true');
+            sessionStorage.setItem('admin_email', email);
+            navigate('/admin/dashboard');
+          }}
+        />
+      );
+    }
+
     return (
       <AdminLayout
         darkMode={darkMode}
@@ -460,6 +551,8 @@ export default function App() {
         onDeleteBanner={handleDeleteBanner}
         onSaveSettings={handleSaveSettings}
         onExitAdmin={handleExitAdmin}
+        userEmail={adminEmail}
+        onSignOut={handleSignOutAdmin}
       />
     );
   }
@@ -519,7 +612,6 @@ export default function App() {
           setTrackingTargetOrderId('');
           setIsOrderTrackingOpen(true);
         }}
-        onOpenAdmin={handleOpenAdmin}
         selectedCategory={selectedCategory}
         onSelectCategory={(cat) => {
           setSelectedCategory(cat);
@@ -722,7 +814,6 @@ export default function App() {
         darkMode={darkMode}
         onNavigateCategory={(cat) => setSelectedCategory(cat)}
         onOpenOrderTracking={() => setIsOrderTrackingOpen(true)}
-        onOpenAdmin={handleOpenAdmin}
         onReplayIntro={() => setShowWelcomeScreen(true)}
       />
 

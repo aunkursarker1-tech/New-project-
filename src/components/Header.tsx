@@ -36,7 +36,7 @@ interface HeaderProps {
   onOpenWishlist: () => void;
   onOpenCompare: () => void;
   onOpenOrderTracking: () => void;
-  onOpenAdmin: () => void;
+  onOpenAdmin?: () => void;
   selectedCategory: string;
   onSelectCategory: (cat: string) => void;
   searchQuery: string;
@@ -130,13 +130,6 @@ export const Header: React.FC<HeaderProps> = ({
               className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-medium transition-colors"
             >
               <PackageCheck className="w-3.5 h-3.5" /> Track Order
-            </button>
-            <span className="text-slate-600">|</span>
-            <button
-              onClick={onOpenAdmin}
-              className="text-slate-300 hover:text-white font-medium transition-colors flex items-center gap-1"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> Admin Panel
             </button>
             <span className="text-slate-600">|</span>
             <span className="px-1.5 py-0.5 rounded bg-emerald-900/60 text-emerald-300 text-[10px] font-bold tracking-wider">
@@ -535,18 +528,6 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <span className="flex items-center gap-2 text-emerald-400">
                     <PackageCheck className="w-4 h-4" /> Track My Order
-                  </span>
-                  <span>→</span>
-                </button>
-                <button
-                  onClick={() => {
-                    onOpenAdmin();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-800/50 text-xs font-semibold"
-                >
-                  <span className="flex items-center gap-2 text-amber-400">
-                    <ShieldCheck className="w-4 h-4" /> Admin Console
                   </span>
                   <span>→</span>
                 </button>

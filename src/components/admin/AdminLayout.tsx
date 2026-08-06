@@ -58,6 +58,8 @@ interface AdminLayoutProps {
   onDeleteBanner: (bannerId: string) => void;
   onSaveSettings: (settings: StoreSettings) => void;
   onExitAdmin: () => void;
+  userEmail?: string;
+  onSignOut?: () => void;
 }
 
 export const AdminLayout: React.FC<AdminLayoutProps> = ({
@@ -93,6 +95,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
   onDeleteBanner,
   onSaveSettings,
   onExitAdmin,
+  userEmail,
+  onSignOut,
 }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -213,6 +217,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           lowStockCount={lowStockCount}
           pendingOrdersCount={pendingOrdersCount}
           onNavigateTab={(tab) => setActiveTab(tab)}
+          userEmail={userEmail}
+          onSignOut={onSignOut}
         />
 
         <main className="p-4 sm:p-6 lg:p-8 flex-1 max-w-7xl w-full mx-auto space-y-6">
