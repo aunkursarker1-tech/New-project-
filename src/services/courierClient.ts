@@ -1,4 +1,5 @@
 import { Order, CourierName, CourierTrackingEvent } from '../types';
+import { supabase } from '../lib/supabase';
 
 export interface CourierApiStatus {
   courier: CourierName;
@@ -206,35 +207,70 @@ export async function saveCourierSettings(payload: {
   sandbox?: boolean;
   is_active?: boolean;
 }): Promise<any> {
-  try {
-    const res = await fetch('/api/courier/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.message || 'Failed to save settings');
-    }
-    return data;
-  } catch (err: any) {
-    console.error('[Save Courier Settings Error]', err);
-    throw err;
+  console.log('[Supabase Courier Settings] Upserting payload to courier_settings table:', payload);
+  const { data, error, status, statusText } = await supabase
+    .from('courier_settings')
+    .upsert(
+      {
+        provider: payload.provider,
+        client_id: payload.client_id || '',
+        client_secret: payload.client_secret || '',
+        username: payload.username || '',
+        password: payload.password || '',
+        store_id: payload.store_id || '',
+        sandbox: payload.sandbox !== undefined ? payload.sandbox : true,
+        is_active: payload.is_active !== undefined ? payload.is_active : true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'provider' }
+    )
+    .select();
+
+  console.log('[Supabase Courier Settings] Full Supabase response:', { data, error, status, statusText });
+
+  if (error) {
+    console.error('[Supabase Courier Settings Error]', error);
+    throw new Error(error.message || 'Supabase upsert failed');
   }
+
+  // Reload data from database to confirm storage
+  const reloaded = await getCourierSettings(payload.provider);
+  console.log('[Supabase Courier Settings] Confirmed reloaded record from DB:', reloaded);
+
+  return {
+    success: true,
+    data: data || reloaded,
+    message: `Settings for ${payload.provider} saved and verified in Supabase successfully.`,
+  };
 }
 
 export async function getCourierSettings(provider?: string): Promise<any> {
   try {
-    const query = provider ? `?provider=${encodeURIComponent(provider)}` : '';
-    const res = await fetch(`/api/courier/settings${query}`);
-    if (res.ok) {
-      const data = await res.json();
-      return data.settings;
+    if (provider) {
+      const { data, error } = await supabase
+        .from('courier_settings')
+        .select('*')
+        .eq('provider', provider)
+        .maybeSingle();
+      if (error) {
+        console.error('[Supabase Get Courier Settings Error]', error);
+        return null;
+      }
+      return data;
+    } else {
+      const { data, error } = await supabase
+        .from('courier_settings')
+        .select('*');
+      if (error) {
+        console.error('[Supabase Get Courier Settings Error]', error);
+        return null;
+      }
+      return data;
     }
   } catch (err) {
-    console.error('[Get Courier Settings Error]', err);
+    console.error('[Supabase Get Courier Settings Exception]', err);
+    return null;
   }
-  return null;
 }
 
 export async function cancelShipmentApi(trackingNumber: string, courierName: string): Promise<any> {
