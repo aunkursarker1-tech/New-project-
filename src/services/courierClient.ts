@@ -170,25 +170,114 @@ export async function autoShipOrder(order: Order): Promise<DispatchResponse> {
   return dispatchOrderToCourier(order);
 }
 
-export async function testCourierApiDiagnostic(courierName: CourierName): Promise<any> {
-  console.log(`[Courier Client] Initiating diagnostic test for ${courierName}...`);
+export async function testCourierConnection(payload: {
+  provider: string;
+  client_id?: string;
+  client_secret?: string;
+  username?: string;
+  password?: string;
+  store_id?: string;
+  sandbox?: boolean;
+}): Promise<{ success: boolean; message: string; provider?: string; status?: string }> {
   try {
-    const res = await fetch('/api/courier/test-diagnostic', {
+    const res = await fetch('/api/courier/test-connection', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ courierName }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
-    console.log(`[Courier Client] Diagnostic response for ${courierName}:`, data);
+    if (!res.ok) {
+      throw new Error(data.message || `Connection failed with status ${res.status}`);
+    }
     return data;
   } catch (err: any) {
-    console.error(`[Courier Client Error] Diagnostic test failed for ${courierName}:`, err);
-    return {
-      success: false,
-      courier: courierName,
-      error: err?.message || 'Network connectivity error',
-      credentialStatus: 'Failed to reach backend or endpoint timeout',
-      networkStatus: 'Disconnected',
-    };
+    console.error('[Test Connection Error]', err);
+    throw new Error(err?.message || 'Failed to connect to courier API');
   }
 }
+
+export async function saveCourierSettings(payload: {
+  provider: string;
+  client_id?: string;
+  client_secret?: string;
+  username?: string;
+  password?: string;
+  store_id?: string;
+  sandbox?: boolean;
+  is_active?: boolean;
+}): Promise<any> {
+  try {
+    const res = await fetch('/api/courier/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to save settings');
+    }
+    return data;
+  } catch (err: any) {
+    console.error('[Save Courier Settings Error]', err);
+    throw err;
+  }
+}
+
+export async function getCourierSettings(provider?: string): Promise<any> {
+  try {
+    const query = provider ? `?provider=${encodeURIComponent(provider)}` : '';
+    const res = await fetch(`/api/courier/settings${query}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.settings;
+    }
+  } catch (err) {
+    console.error('[Get Courier Settings Error]', err);
+  }
+  return null;
+}
+
+export async function cancelShipmentApi(trackingNumber: string, courierName: string): Promise<any> {
+  try {
+    const res = await fetch('/api/courier/cancel-shipment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ trackingNumber, courierName }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to cancel shipment');
+    return data;
+  } catch (err: any) {
+    console.error('[Cancel Shipment API Error]', err);
+    throw err;
+  }
+}
+
+export async function generateConsignmentApi(orderId: string, trackingNumber: string, courierName: string): Promise<any> {
+  try {
+    const res = await fetch('/api/courier/consignment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, trackingNumber, courierName }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to generate consignment');
+    return data;
+  } catch (err: any) {
+    console.error('[Consignment API Error]', err);
+    throw err;
+  }
+}
+
+export async function printLabelApi(trackingNumber: string): Promise<any> {
+  try {
+    const res = await fetch(`/api/courier/print-label/${encodeURIComponent(trackingNumber)}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Failed to retrieve shipping label');
+    return data;
+  } catch (err: any) {
+    console.error('[Print Label API Error]', err);
+    throw err;
+  }
+}
+

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Truck, CheckCircle2, RefreshCw, Key, ShieldCheck, Zap, Send, Calculator, AlertTriangle, Activity } from 'lucide-react';
-import { Order, CourierName, CourierApiConfig } from '../../../types';
+import { Truck, CheckCircle2, RefreshCw, Key, ShieldCheck, Zap, Send, Calculator, AlertTriangle, Activity, Save } from 'lucide-react';
+import { Order, CourierName } from '../../../types';
 import { formatPrice } from '../../../utils/helpers';
-import { checkCourierHealth, dispatchOrderToCourier, testCourierApiDiagnostic, CourierApiStatus } from '../../../services/courierClient';
+import { checkCourierHealth, dispatchOrderToCourier, testCourierConnection, saveCourierSettings, getCourierSettings, CourierApiStatus } from '../../../services/courierClient';
 
 interface CourierIntegrationSectionProps {
   darkMode: boolean;
@@ -18,103 +18,149 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
   const [courierHealth, setCourierHealth] = useState<CourierApiStatus[]>([]);
   const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
 
-  const [config, setConfig] = useState<CourierApiConfig>({
-    steadfastApiKey: 'st_live_987412354a9b8c7d',
-    steadfastSecret: 'st_sec_bd8812399',
-    pathaoClientId: 'pth_client_441209',
-    pathaoSecret: 'pth_sec_9012384712',
-    redxApiKey: 'redx_api_live_88127394',
-    paperflyApiKey: 'pf_live_key_991823',
-    autoSyncOrders: true,
-    activeDefaultCourier: 'Steadfast Courier',
+  // Selected Provider in Settings Form
+  const [selectedProvider, setSelectedProvider] = useState<'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly'>('Pathao');
+
+  // Form Fields State per Provider
+  const [formData, setFormData] = useState({
+    client_id: 'pth_client_441209',
+    client_secret: 'pth_sec_9012384712',
+    username: '',
+    password: '',
+    store_id: 'pth_store_dhanmondi_01',
+    sandbox: true,
+    is_active: true,
   });
 
-  const [pathaoStoreId, setPathaoStoreId] = useState('pth_store_dhanmondi_01');
+  const [loadingSave, setLoadingSave] = useState(false);
+  const [loadingTest, setLoadingTest] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Rate Estimator State
-  const [calcWeight, setCalcWeight] = useState<number>(0.5);
-  const [calcCity, setCalcCity] = useState<'Dhaka' | 'Outside Dhaka'>('Dhaka');
-  const [estimatedFee, setEstimatedFee] = useState<number>(60);
-
-  const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [testingCourier, setTestingCourier] = useState<CourierName | null>(null);
-  const [diagnosticResult, setDiagnosticResult] = useState<any | null>(null);
+  const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
 
-  const handleRunDiagnostic = async (courierName: CourierName) => {
-    setTestingCourier(courierName);
-    setDiagnosticResult(null);
-    try {
-      const res = await testCourierApiDiagnostic(courierName);
-      setDiagnosticResult(res);
-      setSuccessMessage(`Diagnostic completed for ${courierName}. Check debug logs below.`);
-    } catch (e: any) {
-      setDiagnosticResult({
-        success: false,
-        courier: courierName,
-        error: e?.message || 'Diagnostic request failed',
-      });
-      setErrorMessage(`Diagnostic failed for ${courierName}: ${e?.message}`);
-    } finally {
-      setTestingCourier(null);
-    }
-  };
+  // Load health & settings on mount
+  useEffect(() => {
+    loadHealth();
+    loadProviderSettings(selectedProvider);
+  }, []);
 
   const loadHealth = async () => {
     setLoadingHealth(true);
-    const health = await checkCourierHealth();
-    setCourierHealth(health);
-    setLoadingHealth(false);
-  };
-
-  useEffect(() => {
-    loadHealth();
-  }, []);
-
-  const calculatePathaoFee = (weight: number, city: 'Dhaka' | 'Outside Dhaka') => {
-    if (city === 'Dhaka') {
-      return weight <= 0.5 ? 60 : 60 + Math.ceil(weight - 0.5) * 15;
-    } else {
-      return weight <= 0.5 ? 120 : 120 + Math.ceil(weight - 0.5) * 25;
+    try {
+      const health = await checkCourierHealth();
+      setCourierHealth(health);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingHealth(false);
     }
   };
 
-  const handleWeightChange = (w: number, c: 'Dhaka' | 'Outside Dhaka') => {
-    setCalcWeight(w);
-    setCalcCity(c);
-    setEstimatedFee(calculatePathaoFee(w, c));
+  const loadProviderSettings = async (provider: string) => {
+    try {
+      const settings = await getCourierSettings(provider);
+      if (settings) {
+        setFormData({
+          client_id: settings.client_id || '',
+          client_secret: settings.client_secret || '',
+          username: settings.username || '',
+          password: settings.password || '',
+          store_id: settings.store_id || '',
+          sandbox: settings.sandbox !== undefined ? settings.sandbox : true,
+          is_active: settings.is_active !== undefined ? settings.is_active : true,
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load provider settings:', err);
+    }
   };
 
-  const handleSaveConfig = (e: React.FormEvent) => {
+  const handleProviderChange = (provider: 'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly') => {
+    setSelectedProvider(provider);
+    setTestResult(null);
+    loadProviderSettings(provider);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccessMessage('Bangladeshi Courier API Settings & Credentials Saved Successfully!');
-    setTimeout(() => setSuccessMessage(''), 3000);
+    setLoadingSave(true);
+    setSuccessMessage('');
+    setErrorMessage('');
+
+    try {
+      // Validate fields
+      if (!formData.client_id) {
+        throw new Error('Client ID / API Key is required.');
+      }
+
+      const res = await saveCourierSettings({
+        provider: selectedProvider,
+        ...formData,
+      });
+
+      if (res.success) {
+        setSuccessMessage(`✅ Successfully saved configuration and credentials for ${selectedProvider}!`);
+      } else {
+        throw new Error(res.message || 'Failed to save configuration');
+      }
+    } catch (err: any) {
+      console.error('[Save Error]', err);
+      setErrorMessage(err?.message || 'Failed to save courier settings.');
+    } finally {
+      setLoadingSave(false);
+      setTimeout(() => setSuccessMessage(''), 5000);
+    }
+  };
+
+  const handleTestConnection = async () => {
+    setLoadingTest(true);
+    setTestResult(null);
+    setErrorMessage('');
+
+    try {
+      const res = await testCourierConnection({
+        provider: selectedProvider,
+        ...formData,
+      });
+      setTestResult({
+        success: res.success,
+        message: res.message || `✅ Connection Successful to ${selectedProvider} API`,
+      });
+    } catch (err: any) {
+      console.error('[Test Connection Error]', err);
+      setTestResult({
+        success: false,
+        message: err?.message || `❌ Connection Failed: Unauthorized or invalid credentials for ${selectedProvider}`,
+      });
+    } finally {
+      setLoadingTest(false);
+    }
   };
 
   const handleSyncToCourier = async (order: Order, courierName: CourierName) => {
     setSyncingOrderId(order.id);
     setErrorMessage('');
-    
     try {
       const res = await dispatchOrderToCourier(order, courierName);
       if (res.success) {
         if (onUpdateCourierInfo) {
           onUpdateCourierInfo(order.id, res.courierName, res.trackingNumber);
         }
-        setSuccessMessage(`Order #${order.id} dispatched via ${res.courierName}! Consignment Tracking ID: ${res.trackingNumber}`);
+        setSuccessMessage(`Order #${order.id} dispatched via ${res.courierName}! Tracking ID: ${res.trackingNumber}`);
       } else {
-        setErrorMessage(`Dispatch Warning: ${res.message}`);
+        setErrorMessage(`Dispatch Error: ${res.message}`);
       }
     } catch (err: any) {
-      setErrorMessage(`Failed to connect to ${courierName} API: ${err?.message}`);
+      setErrorMessage(`Failed to dispatch: ${err?.message}`);
     } finally {
       setSyncingOrderId(null);
       setTimeout(() => setSuccessMessage(''), 5000);
     }
   };
 
-  const pendingCourierOrders = orders.filter((o) => o.status === 'Pending' || o.status === 'Processing');
+  const pendingOrders = orders.filter((o) => o.status === 'Pending' || o.status === 'Processing');
 
   return (
     <div className="space-y-6">
@@ -123,12 +169,12 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
         <div>
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-full bg-white text-rose-950 text-[10px] font-black uppercase tracking-wider">
-              Real Courier API Hub
+              Supabase & Secure API Hub
             </span>
-            <h2 className="text-xl font-black">Bangladeshi Courier API Integration (Steadfast, Pathao, RedX, Paperfly)</h2>
+            <h2 className="text-xl font-black">Courier Integration & API Credentials Management</h2>
           </div>
           <p className="text-xs text-rose-100 mt-1">
-            Official API integration for automated parcel dispatch, COD collection & real-time shipment status
+            Configure secure API keys, test handshake connections, and manage automated parcel dispatches for Pathao, Steadfast, RedX, and Paperfly.
           </p>
         </div>
 
@@ -139,7 +185,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
             className="px-3.5 py-2 rounded-2xl bg-white/20 hover:bg-white/30 text-white text-xs font-bold flex items-center gap-1.5 transition-all"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loadingHealth ? 'animate-spin' : ''}`} />
-            <span>Ping APIs</span>
+            <span>Ping Status</span>
           </button>
         </div>
       </div>
@@ -158,347 +204,197 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
         </div>
       )}
 
-      {/* Courier Partners API Status Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Steadfast Courier */}
-        <div className={`p-5 rounded-3xl border transition-all ${
-          darkMode ? 'bg-slate-900 border-emerald-500/40' : 'bg-white border-emerald-300'
-        } space-y-3`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-2xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-xs shadow-lg shadow-emerald-500/30">
-                ST
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-100">Steadfast Courier</h3>
-                <span className="text-[10px] text-emerald-400 font-bold">Recommended for COD</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live API
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">Next-day delivery across 64 districts with instant cash pickup.</p>
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">API Status:</span>
-            <span className="font-mono font-bold text-emerald-400">Connected (200 OK)</span>
-          </div>
-        </div>
-
-        {/* Pathao Courier */}
-        <div className={`p-5 rounded-3xl border transition-all ring-2 ring-rose-500/50 ${
-          darkMode ? 'bg-slate-900 border-rose-500/40' : 'bg-white border-rose-300'
-        } space-y-3`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-2xl bg-rose-500 text-white flex items-center justify-center font-black text-xs shadow-lg shadow-rose-500/30">
-                PTH
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-100">Pathao Courier API</h3>
-                <span className="text-[10px] text-rose-400 font-bold">Dhaka Metro Express</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live OAuth
-            </span>
-          </div>
-          <p className="text-[11px] text-slate-400">On-demand city rider dispatch, instant COD settlement & GPS tracking.</p>
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Merchant Store:</span>
-            <span className="font-mono font-bold text-rose-400">{pathaoStoreId}</span>
-          </div>
-        </div>
-
-        {/* RedX Logistics */}
-        <div className={`p-5 rounded-3xl border transition-all ${
-          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        } space-y-3`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black text-xs">
-                RDX
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-100">RedX Logistics</h3>
-                <span className="text-[10px] text-amber-400 font-bold">Nationwide Hubs</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Active API</span>
-          </div>
-          <p className="text-[11px] text-slate-400">Deep coverage across remote Upazilas and Unions in Bangladesh.</p>
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Webhook Status:</span>
-            <span className="font-mono font-bold text-amber-400">Listening (200 OK)</span>
-          </div>
-        </div>
-
-        {/* Paperfly */}
-        <div className={`p-5 rounded-3xl border transition-all ${
-          darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'
-        } space-y-3`}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-2xl bg-cyan-500/20 text-cyan-400 flex items-center justify-center font-black text-xs">
-                PF
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-100">Paperfly</h3>
-                <span className="text-[10px] text-cyan-400 font-bold">Union Coverage</span>
-              </div>
-            </div>
-            <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold">Active API</span>
-          </div>
-          <p className="text-[11px] text-slate-400">Direct door-step parcel delivery reaching rural Bangladesh.</p>
-          <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400">Tracking Endpoint:</span>
-            <span className="font-mono font-bold text-cyan-400">Ready</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Courier API Diagnostics & Debugging Panel */}
-      <div className={`p-5 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} space-y-4`}>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* Courier Settings Configuration Form */}
+      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} space-y-6 shadow-xl`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/50 pb-4">
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400">
-              <Activity className="w-5 h-5" />
+            <div className="p-2.5 rounded-2xl bg-rose-500/20 text-rose-400">
+              <Key className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-sm text-slate-100">Courier API Diagnostics & Troubleshooting Console</h3>
-              <p className="text-[11px] text-slate-400">Test live API connectivity, credential authentication, and payload responses for Steadfast, Pathao, RedX, and Paperfly</p>
+              <h3 className="text-base font-extrabold">Courier API Credentials & Settings</h3>
+              <p className="text-xs text-slate-400">Stored securely in Supabase `courier_settings` table</p>
             </div>
           </div>
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            {(['Steadfast Courier', 'Pathao Courier', 'RedX', 'Paperfly'] as CourierName[]).map((cName) => (
+
+          {/* Provider Selector Tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
+            {(['Pathao', 'Steadfast', 'RedX', 'Paperfly'] as const).map((prov) => (
               <button
-                key={cName}
-                onClick={() => handleRunDiagnostic(cName)}
-                disabled={testingCourier === cName}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[11px] border border-cyan-500/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+                key={prov}
+                type="button"
+                onClick={() => handleProviderChange(prov)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
+                  selectedProvider === prov
+                    ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/30'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900'
+                }`}
               >
-                {testingCourier === cName ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                <span>Test {cName.split(' ')[0]}</span>
+                {prov}
               </button>
             ))}
           </div>
         </div>
 
-        {diagnosticResult && (
-          <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-              <div className="flex items-center gap-2">
-                <span className={`w-2.5 h-2.5 rounded-full ${diagnosticResult.success ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`}></span>
-                <strong className="text-white font-extrabold">{diagnosticResult.courier} Diagnostic Report</strong>
-              </div>
-              <span className="text-[10px] text-slate-400">Response time: {diagnosticResult.durationMs || 120}ms</span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                <span className="text-slate-400 block text-[10px]">Credential Validation:</span>
-                <strong className={diagnosticResult.credentialStatus?.includes('Valid') ? 'text-emerald-400' : 'text-amber-400'}>
-                  {diagnosticResult.credentialStatus || 'Checked'}
-                </strong>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                <span className="text-slate-400 block text-[10px]">Network Connectivity:</span>
-                <strong className="text-cyan-400">{diagnosticResult.networkStatus || 'Connected'}</strong>
-              </div>
-              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
-                <span className="text-slate-400 block text-[10px]">Endpoint Status:</span>
-                <strong className="text-emerald-400">{diagnosticResult.endpointTested || '200 OK'}</strong>
-              </div>
+        <form onSubmit={handleSave} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {selectedProvider} Client ID / API Key / Token *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.client_id}
+                onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
+                placeholder={`Enter ${selectedProvider} API Key or Client ID`}
+                className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
+                  darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
+                }`}
+              />
             </div>
 
             <div>
-              <span className="text-slate-400 text-[10px] block mb-1">Raw API Payload & Response Details:</span>
-              <pre className="p-3 rounded-xl bg-slate-900 text-emerald-300 text-[10px] overflow-x-auto max-h-48">
-                {JSON.stringify(diagnosticResult, null, 2)}
-              </pre>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {selectedProvider} Client Secret / Password
+              </label>
+              <input
+                type="password"
+                value={formData.client_secret}
+                onChange={(e) => setFormData({ ...formData, client_secret: e.target.value })}
+                placeholder="Enter Secret Key"
+                className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
+                  darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
+                }`}
+              />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">Username (Optional)</label>
+              <input
+                type="text"
+                value={formData.username}
+                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                placeholder="Merchant Username"
+                className={`w-full px-4 py-2.5 rounded-2xl text-xs outline-none border transition-all ${
+                  darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
+                }`}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">Store ID / Warehouse ID</label>
+              <input
+                type="text"
+                value={formData.store_id}
+                onChange={(e) => setFormData({ ...formData, store_id: e.target.value })}
+                placeholder="e.g. pth_store_dhanmondi_01"
+                className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
+                  darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
+                }`}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-6 pt-2">
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.sandbox}
+                onChange={(e) => setFormData({ ...formData, sandbox: e.target.checked })}
+                className="w-4 h-4 rounded text-rose-600 focus:ring-rose-500 accent-rose-600"
+              />
+              <span className="text-xs font-bold text-slate-300">Sandbox / Testing Mode</span>
+            </label>
+
+            <label className="flex items-center gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.is_active}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-600"
+              />
+              <span className="text-xs font-bold text-slate-300">Active Integration</span>
+            </label>
+          </div>
+
+          {/* Test Connection Result Box */}
+          {testResult && (
+            <div className={`p-4 rounded-2xl border text-xs font-bold flex items-center gap-2 ${
+              testResult.success ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300' : 'bg-rose-500/20 border-rose-500/40 text-rose-300'
+            }`}>
+              {testResult.success ? <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" /> : <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />}
+              <span>{testResult.message}</span>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800/50">
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={loadingTest}
+              className="px-5 py-2.5 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs flex items-center gap-2 transition-all disabled:opacity-50 border border-slate-700"
+            >
+              {loadingTest ? <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" /> : <Activity className="w-4 h-4 text-cyan-400" />}
+              <span>Test Connection</span>
+            </button>
+
+            <button
+              type="submit"
+              disabled={loadingSave}
+              className="px-6 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white font-extrabold text-xs flex items-center gap-2 transition-all shadow-lg shadow-rose-600/30 disabled:opacity-50"
+            >
+              {loadingSave ? <RefreshCw className="w-4 h-4 animate-spin text-white" /> : <Save className="w-4 h-4" />}
+              <span>Save Courier Settings</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Orders Ready for Dispatch / Live Consignment */}
+      <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} space-y-4`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Truck className="w-5 h-5 text-rose-500" />
+            <h3 className="font-extrabold text-sm">Orders Ready for Dispatch ({pendingOrders.length})</h3>
+          </div>
+          <span className="text-xs text-slate-400">Click dispatch to push order directly to courier API</span>
+        </div>
+
+        {pendingOrders.length === 0 ? (
+          <p className="text-xs text-slate-400 py-6 text-center">No pending orders awaiting dispatch.</p>
+        ) : (
+          <div className="space-y-3">
+            {pendingOrders.map((ord) => (
+              <div key={ord.id} className="p-4 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-emerald-400 text-xs">#{ord.id}</span>
+                    <span className="text-xs font-bold text-white">{ord.shippingAddress.fullName}</span>
+                    <span className="text-[11px] text-slate-400">({ord.shippingAddress.district})</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Total: {formatPrice(ord.total)} • {ord.paymentMethod}</p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {(['Pathao', 'Steadfast', 'RedX', 'Paperfly'] as const).map((courierName) => (
+                    <button
+                      key={courierName}
+                      disabled={syncingOrderId === ord.id}
+                      onClick={() => handleSyncToCourier(ord, `${courierName} Courier` as CourierName)}
+                      className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-[11px] border border-rose-500/30 flex items-center gap-1 transition-all disabled:opacity-50"
+                    >
+                      {syncingOrderId === ord.id ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                      <span>{courierName}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
-
-      {/* Delivery Rate Calculator Widget */}
-      <div className={`p-5 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} space-y-4`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="p-2 rounded-xl bg-rose-500/20 text-rose-400">
-              <Calculator className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-extrabold text-sm text-slate-100">Courier Delivery Charge Estimator</h3>
-              <p className="text-[11px] text-slate-400">Real API calculation for parcel weight and destination in Bangladesh</p>
-            </div>
-          </div>
-          <span className="text-xs font-black text-rose-400 font-mono">Official Courier Rates</span>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
-          <div>
-            <label className="block text-slate-400 mb-1">Parcel Weight (kg)</label>
-            <select
-              value={calcWeight}
-              onChange={(e) => handleWeightChange(Number(e.target.value), calcCity)}
-              className={`w-full px-3.5 py-2 rounded-xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            >
-              <option value={0.5}>Up to 0.5 kg (Small Gadget)</option>
-              <option value={1.0}>1.0 kg (Headphones / Power Bank)</option>
-              <option value={2.0}>2.0 kg (Monitor / Speaker Box)</option>
-              <option value={5.0}>5.0 kg (Heavy Equipment)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">Destination Zone</label>
-            <select
-              value={calcCity}
-              onChange={(e) => handleWeightChange(calcWeight, e.target.value as any)}
-              className={`w-full px-3.5 py-2 rounded-xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            >
-              <option value="Dhaka">Inside Dhaka Metro (60 BDT)</option>
-              <option value="Outside Dhaka">Outside Dhaka / District Hub (120 BDT)</option>
-            </select>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-between">
-            <div>
-              <p className="text-[10px] text-rose-300 uppercase font-extrabold">Estimated Delivery Charge</p>
-              <p className="text-lg font-black text-rose-400 font-mono">৳ {estimatedFee}.00</p>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 rounded bg-rose-500 text-white font-bold">Standard COD</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Orders Ready for One-Click Dispatch */}
-      <div className={`p-5 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} space-y-4`}>
-        <div className="flex items-center justify-between">
-          <h3 className="font-black text-sm uppercase tracking-wider flex items-center gap-2 text-slate-100">
-            <Send className="w-4 h-4 text-rose-400" />
-            <span>Orders Ready for Courier Dispatch ({pendingCourierOrders.length})</span>
-          </h3>
-          <span className="text-xs text-slate-400 font-bold">Live Consignment Creation API</span>
-        </div>
-
-        <div className="divide-y divide-slate-800/60 overflow-x-auto">
-          {pendingCourierOrders.length === 0 ? (
-            <div className="py-8 text-center text-slate-500 text-xs">All active orders have been dispatched to courier APIs!</div>
-          ) : (
-            pendingCourierOrders.map((order) => (
-              <div key={order.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-amber-400">Order #{order.id}</span>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">
-                      {order.shippingAddress.division} ({order.shippingAddress.district})
-                    </span>
-                  </div>
-                  <p className="text-slate-200 font-bold mt-0.5">{order.shippingAddress.fullName} • {order.shippingAddress.phone}</p>
-                  <p className="text-[11px] text-slate-400 truncate max-w-md">{order.shippingAddress.fullAddress}</p>
-                </div>
-
-                <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-                  <span className="font-mono font-black text-emerald-400 mr-2">{formatPrice(order.total)}</span>
-
-                  <button
-                    onClick={() => handleSyncToCourier(order, 'Steadfast Courier')}
-                    disabled={syncingOrderId === order.id}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] flex items-center gap-1 transition-all disabled:opacity-50"
-                  >
-                    {syncingOrderId === order.id ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Truck className="w-3.5 h-3.5" />}
-                    <span>Steadfast</span>
-                  </button>
-
-                  <button
-                    onClick={() => handleSyncToCourier(order, 'Pathao Courier')}
-                    disabled={syncingOrderId === order.id}
-                    className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-[11px] flex items-center gap-1 transition-all disabled:opacity-50"
-                  >
-                    Pathao
-                  </button>
-
-                  <button
-                    onClick={() => handleSyncToCourier(order, 'RedX')}
-                    disabled={syncingOrderId === order.id}
-                    className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-black text-[11px] transition-all disabled:opacity-50"
-                  >
-                    RedX
-                  </button>
-
-                  <button
-                    onClick={() => handleSyncToCourier(order, 'Paperfly')}
-                    disabled={syncingOrderId === order.id}
-                    className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-[11px] transition-all disabled:opacity-50"
-                  >
-                    Paperfly
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      {/* Pathao & Courier API Configuration Form */}
-      <form onSubmit={handleSaveConfig} className={`p-5 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} space-y-4`}>
-        <h3 className="font-black text-sm uppercase tracking-wider text-slate-100 flex items-center gap-2">
-          <Key className="w-4 h-4 text-rose-400" />
-          <span>Bangladeshi Courier Merchant API Credentials & Config</span>
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-bold">
-          <div>
-            <label className="block text-slate-400 mb-1">Steadfast API Key</label>
-            <input
-              type="text"
-              value={config.steadfastApiKey}
-              onChange={(e) => setConfig({ ...config, steadfastApiKey: e.target.value })}
-              className={`w-full px-3.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">Pathao Client ID</label>
-            <input
-              type="text"
-              value={config.pathaoClientId}
-              onChange={(e) => setConfig({ ...config, pathaoClientId: e.target.value })}
-              className={`w-full px-3.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">RedX API Token</label>
-            <input
-              type="password"
-              value={config.redxApiKey}
-              onChange={(e) => setConfig({ ...config, redxApiKey: e.target.value })}
-              className={`w-full px-3.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            />
-          </div>
-
-          <div>
-            <label className="block text-slate-400 mb-1">Paperfly API Key</label>
-            <input
-              type="text"
-              value={config.paperflyApiKey}
-              onChange={(e) => setConfig({ ...config, paperflyApiKey: e.target.value })}
-              className={`w-full px-3.5 py-2.5 rounded-2xl border ${darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-300'}`}
-            />
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          className="px-5 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg shadow-rose-600/20 transition-all"
-        >
-          Save Courier API Credentials
-        </button>
-      </form>
     </div>
   );
 };
