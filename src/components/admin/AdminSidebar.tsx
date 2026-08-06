@@ -20,11 +20,14 @@ import {
   Truck,
   Barcode,
   Lock,
-  Target
+  Target,
+  UserCheck
 } from 'lucide-react';
+import { AdminRole, hasPermission } from '../../lib/adminPermissions';
 
 export type AdminTab =
   | 'dashboard'
+  | 'admin-users'
   | 'products'
   | 'add-product'
   | 'inventory-barcode'
@@ -52,6 +55,7 @@ interface AdminSidebarProps {
   isOpenMobile: boolean;
   onCloseMobile: () => void;
   onExitAdmin: () => void;
+  userRole?: AdminRole;
 }
 
 export const AdminSidebar: React.FC<AdminSidebarProps> = ({
@@ -64,8 +68,9 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
   isOpenMobile,
   onCloseMobile,
   onExitAdmin,
+  userRole = 'Super Admin',
 }) => {
-  const menuItems: Array<{
+  const allMenuItems: Array<{
     id: AdminTab;
     label: string;
     icon: React.ReactNode;
@@ -73,6 +78,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     badgeColor?: string;
   }> = [
     { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+    { id: 'admin-users', label: 'Staff & Roles', icon: <UserCheck className="w-4 h-4 text-purple-400" /> },
     { id: 'products', label: 'Products Catalog', icon: <Package className="w-4 h-4" /> },
     { id: 'add-product', label: 'Add New Product', icon: <PlusCircle className="w-4 h-4" /> },
     { id: 'inventory-barcode', label: 'Barcode & Inventory', icon: <Barcode className="w-4 h-4" /> },
@@ -109,6 +115,8 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" /> },
   ];
 
+  const menuItems = allMenuItems.filter((item) => hasPermission(userRole as AdminRole, item.id));
+
   return (
     <>
       {/* Backdrop overlay on mobile */}
@@ -133,7 +141,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
               </div>
               <div>
                 <h1 className="text-sm font-black tracking-tight leading-none text-white">Gadgetghor BD</h1>
-                <p className="text-[10px] font-bold text-emerald-400 mt-1 uppercase tracking-widest">Admin Portal</p>
+                <p className="text-[10px] font-bold text-emerald-400 mt-1 uppercase tracking-widest">{userRole}</p>
               </div>
             </div>
 

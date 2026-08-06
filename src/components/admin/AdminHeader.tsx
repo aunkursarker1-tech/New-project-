@@ -11,8 +11,10 @@ import {
   ExternalLink,
   Package,
   AlertTriangle,
-  LogOut
+  LogOut,
+  Sparkles
 } from 'lucide-react';
+import { AdminRole, ALL_ROLES } from '../../lib/adminPermissions';
 
 interface AdminHeaderProps {
   darkMode: boolean;
@@ -22,6 +24,8 @@ interface AdminHeaderProps {
   pendingOrdersCount: number;
   onNavigateTab: (tab: any) => void;
   userEmail?: string;
+  userRole?: AdminRole;
+  onChangeRolePreview?: (role: AdminRole) => void;
   onSignOut?: () => void;
 }
 
@@ -33,6 +37,8 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
   pendingOrdersCount,
   onNavigateTab,
   userEmail = 'admin@gadgetghor.bd',
+  userRole = 'Super Admin',
+  onChangeRolePreview,
   onSignOut,
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -55,6 +61,23 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
           Live Store Synchronization Active
         </div>
+
+        {/* Quick Role Switcher Preview for Testing Permissions */}
+        {onChangeRolePreview && (
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1 rounded-2xl bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-bold">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-[10px] uppercase tracking-wider text-purple-400">Role View:</span>
+            <select
+              value={userRole}
+              onChange={(e) => onChangeRolePreview(e.target.value as AdminRole)}
+              className="bg-transparent text-white font-extrabold outline-none cursor-pointer text-xs"
+            >
+              {ALL_ROLES.map((r) => (
+                <option key={r} value={r} className="bg-slate-900 text-white">{r}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3">
@@ -141,11 +164,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
             darkMode ? 'bg-slate-950 border-slate-800' : 'bg-slate-100 border-slate-200'
           }`}>
             <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-amber-400 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xs shadow-sm">
-              AD
+              {userEmail ? userEmail.slice(0, 2).toUpperCase() : 'AD'}
             </div>
             <div className="hidden sm:block text-left">
               <h4 className="text-xs font-black leading-none text-slate-200 truncate max-w-[140px]">{userEmail}</h4>
-              <span className="text-[9px] text-emerald-400 font-bold">Super Administrator</span>
+              <span className="text-[9px] text-emerald-400 font-bold">{userRole}</span>
             </div>
           </div>
 
@@ -164,3 +187,4 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
     </header>
   );
 };
+

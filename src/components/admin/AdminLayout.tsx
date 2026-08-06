@@ -3,9 +3,18 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Product, Order, Customer, Coupon, Category, Review, Banner, StoreSettings, OrderStatus, BlacklistItem, WhitelistItem, FraudStatus } from '../../types';
 import { AdminSidebar, AdminTab } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
+import {
+  AdminUser,
+  AdminRole,
+  AdminUserStatus,
+  INITIAL_ADMIN_USERS,
+  hasPermission,
+} from '../../lib/adminPermissions';
+import { ShieldAlert, Lock, ArrowLeft } from 'lucide-react';
 
 // Import Section Components
 import { DashboardSection } from './sections/DashboardSection';
+import { AdminUsersSection } from './sections/AdminUsersSection';
 import { ProductsSection } from './sections/ProductsSection';
 import { AddProductSection } from './sections/AddProductSection';
 import { ImageManagerSection } from './sections/ImageManagerSection';
@@ -107,6 +116,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     
     const validTabs: AdminTab[] = [
       'dashboard',
+      'admin-users',
       'products',
       'add-product',
       'inventory-barcode',
@@ -147,6 +157,93 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState(false);
 
+  // Admin Users & RBAC State
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>(INITIAL_ADMIN_USERS);
+  const [currentAdminRole, setCurrentAdminRole] = useState<AdminRole>('Super Admin');
+
+  // Sync role with logged-in email if matched
+  useEffect(() => {
+    if (userEmail) {
+      const matched = adminUsers.find((u) => u.email.toLowerCase() === userEmail.toLowerCase());
+      if (matched) {
+        setCurrentAdminRole(matched.role);
+      }
+    }
+  }, [userEmail]);
+
+  // Admin Users Handlers
+  const handleAddUser = (newUser: Omit<AdminUser, 'id' | 'createdAt' | 'loginHistory' | 'activityLogs'>) => {
+    const created: AdminUser = {
+      ...newUser,
+      id: `adm-${Date.now().toString().slice(-4)}`,
+      createdAt: new Date().toISOString().split('T')[0],
+      loginHistory: [
+        {
+          id: `lh-${Date.now()}`,
+          timestamp: new Date().toLocaleString(),
+          ip: '103.230.104.12',
+          device: 'Chrome on macOS',
+          location: 'Dhaka, Bangladesh',
+          status: 'Success',
+        },
+      ],
+      activityLogs: [
+        {
+          id: `al-${Date.now()}`,
+          action: 'Account Provisioned',
+          timestamp: new Date().toLocaleString(),
+          ip: '103.230.104.12',
+          details: `Provisioned ${newUser.role} account for ${newUser.name}`,
+          category: 'User Management',
+        },
+      ],
+    };
+    setAdminUsers((prev) => [created, ...prev]);
+  };
+
+  const handleUpdateUser = (updatedUser: AdminUser) => {
+    setAdminUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)));
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    setAdminUsers((prev) => prev.filter((u) => u.id !== userId));
+  };
+
+  const handleBulkUpdateStatus = (userIds: string[], status: AdminUserStatus) => {
+    setAdminUsers((prev) =>
+      prev.map((u) => (userIds.includes(u.id) ? { ...u, status } : u))
+    );
+  };
+
+  const handleBulkDelete = (userIds: string[]) => {
+    setAdminUsers((prev) => prev.filter((u) => !userIds.includes(u.id)));
+  };
+
+  const handleResetPassword = (userId: string): string => {
+    const tempCode = `RESET-${Math.floor(100000 + Math.random() * 900000)}`;
+    setAdminUsers((prev) =>
+      prev.map((u) =>
+        u.id === userId
+          ? {
+              ...u,
+              activityLogs: [
+                {
+                  id: `al-${Date.now()}`,
+                  action: 'Password Reset Issued',
+                  timestamp: new Date().toLocaleString(),
+                  ip: '103.230.104.12',
+                  details: `Temporary security reset token ${tempCode} issued`,
+                  category: 'Security',
+                },
+                ...u.activityLogs,
+              ],
+            }
+          : u
+      )
+    );
+    return tempCode;
+  };
+
   // Editing Product state
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
@@ -186,6 +283,9 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
     setActiveTab('products');
   };
 
+  // Permission Check for current active tab
+  const canAccessTab = hasPermission(currentAdminRole, activeTab);
+
   return (
     <div className={`min-h-screen flex font-sans ${
       darkMode ? 'bg-slate-950 text-white' : 'bg-slate-100 text-slate-900'
@@ -206,6 +306,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
         isOpenMobile={isOpenMobileSidebar}
         onCloseMobile={() => setIsOpenMobileSidebar(false)}
         onExitAdmin={onExitAdmin}
+        userRole={currentAdminRole}
       />
 
       {/* Main Content Area */}
@@ -218,19 +319,57 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           pendingOrdersCount={pendingOrdersCount}
           onNavigateTab={(tab) => setActiveTab(tab)}
           userEmail={userEmail}
+          userRole={currentAdminRole}
+          onChangeRolePreview={(role) => setCurrentAdminRole(role)}
           onSignOut={onSignOut}
         />
 
         <main className="p-4 sm:p-6 lg:p-8 flex-1 max-w-7xl w-full mx-auto space-y-6">
-          {activeTab === 'dashboard' && (
-            <DashboardSection
-              darkMode={darkMode}
-              orders={orders}
-              products={products}
-              onSelectOrder={(ord) => setSelectedInvoiceOrder(ord)}
-              onNavigateTab={(tab) => setActiveTab(tab as AdminTab)}
-            />
-          )}
+          {!canAccessTab ? (
+            <div className={`p-8 rounded-3xl border text-center space-y-4 max-w-xl mx-auto my-12 ${
+              darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+            }`}>
+              <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 mx-auto flex items-center justify-center">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h2 className="text-xl font-black">Restricted Module Access</h2>
+                <p className="text-xs text-slate-400">
+                  Your current role <span className="font-bold text-amber-400">({currentAdminRole})</span> does not have granted authorization to access the <span className="font-bold text-emerald-400">/admin/{activeTab}</span> module.
+                </p>
+              </div>
+              <button
+                onClick={() => setActiveTab('dashboard')}
+                className="px-5 py-2.5 rounded-2xl bg-emerald-500 text-slate-950 font-black text-xs inline-flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" /> Return to Main Dashboard
+              </button>
+            </div>
+          ) : (
+            <>
+              {activeTab === 'dashboard' && (
+                <DashboardSection
+                  darkMode={darkMode}
+                  orders={orders}
+                  products={products}
+                  onSelectOrder={(ord) => setSelectedInvoiceOrder(ord)}
+                  onNavigateTab={(tab) => setActiveTab(tab as AdminTab)}
+                />
+              )}
+
+              {activeTab === 'admin-users' && (
+                <AdminUsersSection
+                  darkMode={darkMode}
+                  adminUsers={adminUsers}
+                  currentAdminRole={currentAdminRole}
+                  onAddUser={handleAddUser}
+                  onUpdateUser={handleUpdateUser}
+                  onDeleteUser={handleDeleteUser}
+                  onBulkUpdateStatus={handleBulkUpdateStatus}
+                  onBulkDelete={handleBulkDelete}
+                  onResetPassword={handleResetPassword}
+                />
+              )}
 
           {activeTab === 'products' && (
             <ProductsSection
@@ -371,6 +510,8 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               settings={settings}
               onSaveSettings={onSaveSettings}
             />
+          )}
+            </>
           )}
         </main>
       </div>
