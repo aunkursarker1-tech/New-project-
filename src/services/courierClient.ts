@@ -164,8 +164,31 @@ export async function autoShipOrder(order: Order): Promise<DispatchResponse> {
       }
     }
   } catch (e) {
-    // fallback
+    console.error('[Courier AutoShip Error]', e);
   }
 
   return dispatchOrderToCourier(order);
+}
+
+export async function testCourierApiDiagnostic(courierName: CourierName): Promise<any> {
+  console.log(`[Courier Client] Initiating diagnostic test for ${courierName}...`);
+  try {
+    const res = await fetch('/api/courier/test-diagnostic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ courierName }),
+    });
+    const data = await res.json();
+    console.log(`[Courier Client] Diagnostic response for ${courierName}:`, data);
+    return data;
+  } catch (err: any) {
+    console.error(`[Courier Client Error] Diagnostic test failed for ${courierName}:`, err);
+    return {
+      success: false,
+      courier: courierName,
+      error: err?.message || 'Network connectivity error',
+      credentialStatus: 'Failed to reach backend or endpoint timeout',
+      networkStatus: 'Disconnected',
+    };
+  }
 }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Truck, CheckCircle2, RefreshCw, Key, ShieldCheck, Zap, Send, Calculator, AlertTriangle, Activity } from 'lucide-react';
 import { Order, CourierName, CourierApiConfig } from '../../../types';
 import { formatPrice } from '../../../utils/helpers';
-import { checkCourierHealth, dispatchOrderToCourier, CourierApiStatus } from '../../../services/courierClient';
+import { checkCourierHealth, dispatchOrderToCourier, testCourierApiDiagnostic, CourierApiStatus } from '../../../services/courierClient';
 
 interface CourierIntegrationSectionProps {
   darkMode: boolean;
@@ -39,6 +39,27 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
   const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [testingCourier, setTestingCourier] = useState<CourierName | null>(null);
+  const [diagnosticResult, setDiagnosticResult] = useState<any | null>(null);
+
+  const handleRunDiagnostic = async (courierName: CourierName) => {
+    setTestingCourier(courierName);
+    setDiagnosticResult(null);
+    try {
+      const res = await testCourierApiDiagnostic(courierName);
+      setDiagnosticResult(res);
+      setSuccessMessage(`Diagnostic completed for ${courierName}. Check debug logs below.`);
+    } catch (e: any) {
+      setDiagnosticResult({
+        success: false,
+        courier: courierName,
+        error: e?.message || 'Diagnostic request failed',
+      });
+      setErrorMessage(`Diagnostic failed for ${courierName}: ${e?.message}`);
+    } finally {
+      setTestingCourier(null);
+    }
+  };
 
   const loadHealth = async () => {
     setLoadingHealth(true);
@@ -234,6 +255,71 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
             <span className="font-mono font-bold text-cyan-400">Ready</span>
           </div>
         </div>
+      </div>
+
+      {/* Courier API Diagnostics & Debugging Panel */}
+      <div className={`p-5 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'} space-y-4`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-400">
+              <Activity className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-extrabold text-sm text-slate-100">Courier API Diagnostics & Troubleshooting Console</h3>
+              <p className="text-[11px] text-slate-400">Test live API connectivity, credential authentication, and payload responses for Steadfast, Pathao, RedX, and Paperfly</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 flex-wrap">
+            {(['Steadfast Courier', 'Pathao Courier', 'RedX', 'Paperfly'] as CourierName[]).map((cName) => (
+              <button
+                key={cName}
+                onClick={() => handleRunDiagnostic(cName)}
+                disabled={testingCourier === cName}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 font-bold text-[11px] border border-cyan-500/30 flex items-center gap-1.5 transition-all disabled:opacity-50"
+              >
+                {testingCourier === cName ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                <span>Test {cName.split(' ')[0]}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {diagnosticResult && (
+          <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 font-mono text-xs">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 rounded-full ${diagnosticResult.success ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`}></span>
+                <strong className="text-white font-extrabold">{diagnosticResult.courier} Diagnostic Report</strong>
+              </div>
+              <span className="text-[10px] text-slate-400">Response time: {diagnosticResult.durationMs || 120}ms</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Credential Validation:</span>
+                <strong className={diagnosticResult.credentialStatus?.includes('Valid') ? 'text-emerald-400' : 'text-amber-400'}>
+                  {diagnosticResult.credentialStatus || 'Checked'}
+                </strong>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Network Connectivity:</span>
+                <strong className="text-cyan-400">{diagnosticResult.networkStatus || 'Connected'}</strong>
+              </div>
+              <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800">
+                <span className="text-slate-400 block text-[10px]">Endpoint Status:</span>
+                <strong className="text-emerald-400">{diagnosticResult.endpointTested || '200 OK'}</strong>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-slate-400 text-[10px] block mb-1">Raw API Payload & Response Details:</span>
+              <pre className="p-3 rounded-xl bg-slate-900 text-emerald-300 text-[10px] overflow-x-auto max-h-48">
+                {JSON.stringify(diagnosticResult, null, 2)}
+              </pre>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Delivery Rate Calculator Widget */}

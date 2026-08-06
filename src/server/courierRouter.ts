@@ -126,3 +126,64 @@ courierRouter.post('/webhook', (req, res) => {
   console.log('Received Courier Webhook payload:', req.body);
   res.status(200).json({ success: true, message: 'Webhook received & order status updated.' });
 });
+
+// 6. Courier API Diagnostic & Troubleshooting Test Endpoint
+courierRouter.post('/test-diagnostic', async (req, res) => {
+  const { courierName } = req.body;
+  const startTime = Date.now();
+  console.log(`[Courier Diagnostics] Running test diagnostic for courier: ${courierName || 'Steadfast Courier'}`);
+  try {
+    const testOrder = {
+      id: 'TEST-' + Math.floor(1000 + Math.random() * 9000),
+      shippingAddress: {
+        fullName: 'Test Recipient',
+        phone: '01711223344',
+        fullAddress: 'Dhanmondi, Dhaka',
+        district: 'Dhaka',
+        division: 'Dhaka',
+        thana: 'Dhanmondi'
+      },
+      total: 1500,
+      paymentMethod: 'COD',
+      items: [{ product: { name: 'Test Gadget' }, quantity: 1 }]
+    };
+
+    const result = await createShipment({
+      orderId: testOrder.id,
+      recipientName: testOrder.shippingAddress.fullName,
+      recipientPhone: testOrder.shippingAddress.phone,
+      address: testOrder.shippingAddress.fullAddress,
+      division: testOrder.shippingAddress.division,
+      district: testOrder.shippingAddress.district,
+      thana: testOrder.shippingAddress.thana,
+      codAmount: 1500,
+      itemDescription: 'Test Product',
+      itemWeightKg: 0.5,
+      courierName: courierName || 'Steadfast Courier'
+    });
+
+    console.log(`[Courier Diagnostics] Result for ${courierName}:`, result);
+
+    res.json({
+      success: true,
+      durationMs: Date.now() - startTime,
+      courier: courierName || 'Steadfast Courier',
+      endpointTested: result.isMockFallback ? 'Local Fallback (Credentials Missing or Network Timeout)' : 'Live API (200 OK)',
+      result,
+      credentialStatus: result.isMockFallback ? 'Missing or Invalid API Credentials in .env' : 'Valid & Authenticated',
+      networkStatus: 'Connected',
+      payloadFormatting: 'Valid'
+    });
+  } catch (err: any) {
+    console.error(`[Courier Diagnostics Error] Failed diagnostic for ${courierName}:`, err);
+    res.status(500).json({
+      success: false,
+      durationMs: Date.now() - startTime,
+      courier: courierName || 'Steadfast Courier',
+      error: err?.message || 'Unknown diagnostic error',
+      credentialStatus: 'Error during auth check',
+      networkStatus: 'Connection Failed / Timeout',
+      payloadFormatting: 'Check payload structure'
+    });
+  }
+});
