@@ -23,6 +23,7 @@ import { LiveChatWidget } from './components/LiveChatWidget';
 import { RecentlyViewedAndRecommendations } from './components/RecentlyViewedAndRecommendations';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 import {
   INITIAL_CATEGORIES,
@@ -892,10 +893,12 @@ export default function App() {
         onRemoveWishlist={(id) => setWishlistIds((prev) => prev.filter((i) => i !== id))}
         onAddToCart={handleAddToCart}
       />
+
+      {/* Vercel Speed Insights */}
+      <SpeedInsights />
     </div>
         }
       />
     </Routes>
   );
 }
-
