@@ -133,7 +133,7 @@ export default function App() {
   const [isOrderTrackingOpen, setIsOrderTrackingOpen] = useState(false);
   // Admin Auth & Route State
   const [adminEmail, setAdminEmail] = useState<string>(() => {
-    return sessionStorage.getItem('admin_email') || 'admin@gadgetghor.bd';
+    return sessionStorage.getItem('admin_email') || '';
   });
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
     return sessionStorage.getItem('admin_auth') === 'true';
@@ -144,7 +144,7 @@ export default function App() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
         setIsAdminAuthenticated(true);
-        setAdminEmail(session.user.email || 'admin@gadgetghor.bd');
+        setAdminEmail(session.user.email || '');
         sessionStorage.setItem('admin_auth', 'true');
         if (session.user.email) sessionStorage.setItem('admin_email', session.user.email);
       }
@@ -153,9 +153,14 @@ export default function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setIsAdminAuthenticated(true);
-        setAdminEmail(session.user.email || 'admin@gadgetghor.bd');
+        setAdminEmail(session.user.email || '');
         sessionStorage.setItem('admin_auth', 'true');
         if (session.user.email) sessionStorage.setItem('admin_email', session.user.email);
+      } else {
+        setIsAdminAuthenticated(false);
+        setAdminEmail('');
+        sessionStorage.removeItem('admin_auth');
+        sessionStorage.removeItem('admin_email');
       }
     });
 

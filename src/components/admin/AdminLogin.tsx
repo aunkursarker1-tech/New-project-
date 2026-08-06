@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, Mail, KeyRound, AlertCircle, ArrowRight, Sparkles, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, KeyRound, AlertCircle, ArrowRight, CheckCircle2 } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 
 interface AdminLoginProps {
@@ -10,8 +10,8 @@ interface AdminLoginProps {
 
 export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess }) => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('admin@gadgetghor.bd');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -21,66 +21,45 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
     setErrorMsg(null);
     setSuccessMsg(null);
 
-    if (!email || !password) {
+    if (!email.trim() || !password) {
       setErrorMsg('Please enter both email and password.');
+      return;
+    }
+
+    if (!isSupabaseConfigured) {
+      setErrorMsg('Supabase environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) are missing or invalid.');
       return;
     }
 
     setLoading(true);
 
     try {
-      if (isSupabaseConfigured) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-        if (error) {
-          // If user doesn't exist in Supabase yet, attempt fallback or show error
-          if (email === 'admin@gadgetghor.bd' && password === 'admin123') {
-            setSuccessMsg('Authenticated via Admin Security Portal');
-            setTimeout(() => {
-              onLoginSuccess(email);
-              navigate('/admin/dashboard');
-            }, 600);
-            return;
-          }
-          setErrorMsg(error.message);
-          setLoading(false);
-          return;
-        }
+      if (error) {
+        setErrorMsg(error.message || 'Invalid login credentials.');
+        setLoading(false);
+        return;
+      }
 
-        if (data.user) {
-          setSuccessMsg('Supabase Authentication successful!');
-          setTimeout(() => {
-            onLoginSuccess(data.user?.email || email);
-            navigate('/admin/dashboard');
-          }, 600);
-          return;
-        }
+      if (data.user) {
+        setSuccessMsg('Authentication successful!');
+        setTimeout(() => {
+          onLoginSuccess(data.user?.email || email.trim());
+          navigate('/admin/dashboard');
+        }, 500);
+        return;
       } else {
-        // Fallback for local demo mode before Supabase credentials are input
-        if (email === 'admin@gadgetghor.bd' && password === 'admin123') {
-          setSuccessMsg('Authenticated via Local Admin Credentials');
-          setTimeout(() => {
-            onLoginSuccess(email);
-            navigate('/admin/dashboard');
-          }, 600);
-        } else {
-          setErrorMsg('Invalid admin credentials. Use admin@gadgetghor.bd / admin123 for demo mode.');
-        }
+        setErrorMsg('User authentication failed.');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Authentication error occurred.');
+      setErrorMsg(err.message || 'An error occurred during authentication.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleDemoFill = () => {
-    setEmail('admin@gadgetghor.bd');
-    setPassword('admin123');
-    setErrorMsg(null);
   };
 
   return (
@@ -104,7 +83,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
           <div className="flex items-center justify-between pb-5 mb-6 border-b border-slate-800/60">
             <div>
               <h2 className="text-lg font-bold">Admin Sign In</h2>
-              <p className="text-xs text-slate-400">Authenticated with Supabase Security</p>
+              <p className="text-xs text-slate-400">Supabase Authentication</p>
             </div>
             <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
               <Lock className="w-3 h-3" /> Protected
@@ -137,7 +116,7 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@gadgetghor.bd"
+                  placeholder="admin@example.com"
                   className={`w-full pl-10 pr-4 py-3 rounded-2xl border text-sm transition-all outline-none ${
                     darkMode
                       ? 'bg-slate-950 border-slate-800 text-white focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500'
@@ -168,24 +147,10 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs pt-1">
-              <label className="flex items-center gap-2 text-slate-400 cursor-pointer">
-                <input type="checkbox" defaultChecked className="rounded border-slate-700 text-emerald-500 focus:ring-0 bg-slate-950" />
-                <span>Remember session</span>
-              </label>
-              <button
-                type="button"
-                onClick={handleDemoFill}
-                className="text-amber-400 hover:underline text-[11px] font-semibold flex items-center gap-1"
-              >
-                <Sparkles className="w-3 h-3" /> Auto-fill Demo Credentials
-              </button>
-            </div>
-
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-2"
+              className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 text-slate-950 font-black text-sm shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 mt-4"
             >
               {loading ? (
                 <span>Authenticating with Supabase...</span>
@@ -197,15 +162,9 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
               )}
             </button>
           </form>
-
-          {/* Quick Demo Info */}
-          <div className="mt-6 pt-5 border-t border-slate-800/60 text-center text-[11px] text-slate-400">
-            <p>Demo Admin Email: <span className="text-emerald-400 font-mono font-bold">admin@gadgetghor.bd</span></p>
-            <p className="mt-0.5">Password: <span className="text-amber-400 font-mono font-bold">admin123</span></p>
-          </div>
         </div>
 
-        {/* Storefront return link (only on login page if desired or completely isolate) */}
+        {/* Storefront return link */}
         <div className="text-center mt-6">
           <button
             onClick={() => navigate('/')}
@@ -218,3 +177,4 @@ export const AdminLogin: React.FC<AdminLoginProps> = ({ darkMode, onLoginSuccess
     </div>
   );
 };
+
