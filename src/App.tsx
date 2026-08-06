@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Routes, Route, Navigate } from 'react-router-dom';
 import { Header } from './components/Header';
 import { HeroBanner } from './components/HeroBanner';
 import { CategoryGrid } from './components/CategoryGrid';
@@ -445,117 +445,57 @@ export default function App() {
     addToast('success', 'Settings Saved', 'Store configuration updated successfully.');
   };
 
-  // Render Full Screen Route-Based Admin Layout if on admin route
-  if (isAdminRoute) {
-    if (location.pathname === '/admin/login') {
-      if (isAdminAuthenticated) {
-        return (
-          <AdminLayout
-            darkMode={darkMode}
-            onToggleDarkMode={() => setDarkMode(!darkMode)}
-            products={products}
-            orders={orders}
-            customers={customers}
-            coupons={coupons}
-            categories={categories}
-            reviews={reviews}
-            banners={banners}
-            settings={settings}
-            blacklists={blacklists}
-            whitelists={whitelists}
-            onAddProduct={handleAddProduct}
-            onUpdateProduct={handleUpdateProduct}
-            onDeleteProduct={handleDeleteProduct}
-            onUpdateOrderStatus={handleUpdateOrderStatus}
-            onUpdateCourierInfo={handleUpdateCourierInfo}
-            onUpdateFraudStatus={handleUpdateFraudStatus}
-            onAddBlacklist={handleAddBlacklist}
-            onRemoveBlacklist={handleRemoveBlacklist}
-            onAddWhitelist={handleAddWhitelist}
-            onRemoveWhitelist={handleRemoveWhitelist}
-            onAddCoupon={handleAddCoupon}
-            onDeleteCoupon={handleDeleteCoupon}
-            onAddCategory={handleAddCategory}
-            onUpdateCategory={handleUpdateCategory}
-            onDeleteCategory={handleDeleteCategory}
-            onAddBanner={handleAddBanner}
-            onUpdateBanner={handleUpdateBanner}
-            onDeleteBanner={handleDeleteBanner}
-            onSaveSettings={handleSaveSettings}
-            onExitAdmin={handleExitAdmin}
-            userEmail={adminEmail}
-            onSignOut={handleSignOutAdmin}
-          />
-        );
-      }
-      return (
-        <AdminLogin
-          darkMode={darkMode}
-          onLoginSuccess={(email) => {
-            setIsAdminAuthenticated(true);
-            setAdminEmail(email);
-            sessionStorage.setItem('admin_auth', 'true');
-            sessionStorage.setItem('admin_email', email);
-            navigate('/admin/dashboard');
-          }}
-        />
-      );
-    }
+  const renderAdminLayout = () => (
+    <AdminLayout
+      darkMode={darkMode}
+      onToggleDarkMode={() => setDarkMode(!darkMode)}
+      products={products}
+      orders={orders}
+      customers={customers}
+      coupons={coupons}
+      categories={categories}
+      reviews={reviews}
+      banners={banners}
+      settings={settings}
+      blacklists={blacklists}
+      whitelists={whitelists}
+      onAddProduct={handleAddProduct}
+      onUpdateProduct={handleUpdateProduct}
+      onDeleteProduct={handleDeleteProduct}
+      onUpdateOrderStatus={handleUpdateOrderStatus}
+      onUpdateCourierInfo={handleUpdateCourierInfo}
+      onUpdateFraudStatus={handleUpdateFraudStatus}
+      onAddBlacklist={handleAddBlacklist}
+      onRemoveBlacklist={handleRemoveBlacklist}
+      onAddWhitelist={handleAddWhitelist}
+      onRemoveWhitelist={handleRemoveWhitelist}
+      onAddCoupon={handleAddCoupon}
+      onDeleteCoupon={handleDeleteCoupon}
+      onAddCategory={handleAddCategory}
+      onUpdateCategory={handleUpdateCategory}
+      onDeleteCategory={handleDeleteCategory}
+      onAddBanner={handleAddBanner}
+      onUpdateBanner={handleUpdateBanner}
+      onDeleteBanner={handleDeleteBanner}
+      onSaveSettings={handleSaveSettings}
+      onExitAdmin={handleExitAdmin}
+      userEmail={adminEmail}
+      onSignOut={handleSignOutAdmin}
+    />
+  );
 
-    if (!isAdminAuthenticated) {
-      return (
-        <AdminLogin
-          darkMode={darkMode}
-          onLoginSuccess={(email) => {
-            setIsAdminAuthenticated(true);
-            setAdminEmail(email);
-            sessionStorage.setItem('admin_auth', 'true');
-            sessionStorage.setItem('admin_email', email);
-            navigate('/admin/dashboard');
-          }}
-        />
-      );
-    }
-
-    return (
-      <AdminLayout
-        darkMode={darkMode}
-        onToggleDarkMode={() => setDarkMode(!darkMode)}
-        products={products}
-        orders={orders}
-        customers={customers}
-        coupons={coupons}
-        categories={categories}
-        reviews={reviews}
-        banners={banners}
-        settings={settings}
-        blacklists={blacklists}
-        whitelists={whitelists}
-        onAddProduct={handleAddProduct}
-        onUpdateProduct={handleUpdateProduct}
-        onDeleteProduct={handleDeleteProduct}
-        onUpdateOrderStatus={handleUpdateOrderStatus}
-        onUpdateCourierInfo={handleUpdateCourierInfo}
-        onUpdateFraudStatus={handleUpdateFraudStatus}
-        onAddBlacklist={handleAddBlacklist}
-        onRemoveBlacklist={handleRemoveBlacklist}
-        onAddWhitelist={handleAddWhitelist}
-        onRemoveWhitelist={handleRemoveWhitelist}
-        onAddCoupon={handleAddCoupon}
-        onDeleteCoupon={handleDeleteCoupon}
-        onAddCategory={handleAddCategory}
-        onUpdateCategory={handleUpdateCategory}
-        onDeleteCategory={handleDeleteCategory}
-        onAddBanner={handleAddBanner}
-        onUpdateBanner={handleUpdateBanner}
-        onDeleteBanner={handleDeleteBanner}
-        onSaveSettings={handleSaveSettings}
-        onExitAdmin={handleExitAdmin}
-        userEmail={adminEmail}
-        onSignOut={handleSignOutAdmin}
-      />
-    );
-  }
+  const renderAdminLogin = () => (
+    <AdminLogin
+      darkMode={darkMode}
+      onLoginSuccess={(email) => {
+        setIsAdminAuthenticated(true);
+        setAdminEmail(email);
+        sessionStorage.setItem('admin_auth', 'true');
+        sessionStorage.setItem('admin_email', email);
+        navigate('/admin/dashboard');
+      }}
+    />
+  );
 
   // Filtered Products
   const filteredProducts = products.filter((product) => {
@@ -587,17 +527,57 @@ export default function App() {
   const compareProducts = products.filter((p) => compareIds.includes(p.id));
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 font-sans ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
-      
-      {/* Premium Welcome Screen Overlay on Load/Refresh */}
-      {showWelcomeScreen && (
-        <WelcomeScreen onComplete={() => setShowWelcomeScreen(false)} />
-      )}
+    <Routes>
+      {/* Admin Login Route */}
+      <Route
+        path="/admin/login"
+        element={
+          isAdminAuthenticated ? (
+            <Navigate to="/admin/dashboard" replace />
+          ) : (
+            renderAdminLogin()
+          )
+        }
+      />
 
-      {/* Toast Notification Layer */}
-      <ToastContainer toasts={toasts} onClose={removeToast} />
+      {/* Admin Root Route */}
+      <Route
+        path="/admin"
+        element={
+          isAdminAuthenticated ? (
+            <Navigate to="/admin/dashboard" replace />
+          ) : (
+            <Navigate to="/admin/login" replace />
+          )
+        }
+      />
 
-      {/* Main Reactive Header */}
+      {/* Registered Admin Sub-Routes (/admin/dashboard, /admin/products, /admin/orders, /admin/customers, /admin/analytics, /admin/coupons, /admin/settings, /admin/fraud, etc.) */}
+      <Route
+        path="/admin/*"
+        element={
+          isAdminAuthenticated ? (
+            renderAdminLayout()
+          ) : (
+            <Navigate to="/admin/login" replace />
+          )
+        }
+      />
+
+      {/* Public Storefront Route */}
+      <Route
+        path="/*"
+        element={
+          <div className={`min-h-screen transition-colors duration-300 font-sans ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+            {/* Premium Welcome Screen Overlay on Load/Refresh */}
+            {showWelcomeScreen && (
+              <WelcomeScreen onComplete={() => setShowWelcomeScreen(false)} />
+            )}
+
+            {/* Toast Notification Layer */}
+            <ToastContainer toasts={toasts} onClose={removeToast} />
+
+            {/* Main Reactive Header */}
       <Header
         darkMode={darkMode}
         setDarkMode={setDarkMode}
@@ -908,6 +888,9 @@ export default function App() {
         onAddToCart={handleAddToCart}
       />
     </div>
+        }
+      />
+    </Routes>
   );
 }
 

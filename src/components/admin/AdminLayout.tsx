@@ -139,7 +139,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
 
   const setActiveTab = (tab: AdminTab) => {
     setActiveTabState(tab);
-    const targetPath = tab === 'dashboard' ? '/admin' : `/admin/${tab}`;
+    const targetPath = `/admin/${tab}`;
     if (location.pathname !== targetPath) {
       navigate(targetPath);
     }
