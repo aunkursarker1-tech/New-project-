@@ -1,0 +1,8 @@
+{
+  "name": "Gadgetghor BD",
+  "description": "Premium Bangladeshi E-Commerce store for Authentic Gadgets, Mobile Accessories, Smart Home & Audio Devices in Bangladesh.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
