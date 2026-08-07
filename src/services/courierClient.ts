@@ -77,37 +77,18 @@ export async function dispatchOrderToCourier(
       }),
     });
 
-    if (res.ok) {
-      const data: DispatchResponse = await res.json();
-      if (data && data.trackingNumber) {
-        return data;
-      }
+    const data = await res.json();
+    console.log('[Dispatch Order Response]', { status: res.status, data });
+
+    if (res.ok && data.success) {
+      return data;
+    } else {
+      throw new Error(data.message || data.errorDetails || `Courier API failed with status ${res.status}`);
     }
-  } catch (err) {
-    console.warn('Network error reaching backend courier API. Generating consignment locally.', err);
+  } catch (err: any) {
+    console.error('[Dispatch Order Error]', err);
+    throw new Error(err?.message || 'Failed to dispatch order to courier API');
   }
-
-  // Local fallback generation
-  const prefixMap: Record<CourierName, string> = {
-    'Steadfast Courier': 'ST',
-    'Pathao Courier': 'PTH',
-    'RedX': 'RDX',
-    'Paperfly': 'PF',
-  };
-  const prefix = prefixMap[chosenCourier] || 'ST';
-  const generatedTracking = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
-
-  return {
-    success: true,
-    courierName: chosenCourier,
-    trackingNumber: generatedTracking,
-    consignmentId: `${prefix}C-${Math.floor(10000 + Math.random() * 90000)}`,
-    status: 'Shipped',
-    deliveryFee: order.shippingAddress.district.toLowerCase() === 'dhaka' ? 60 : 120,
-    estimatedDeliveryDays: order.shippingAddress.district.toLowerCase() === 'dhaka' ? '24 Hours' : '2-3 Days',
-    message: `Order #${order.id} dispatched via ${chosenCourier}! Consignment Tracking ID: ${generatedTracking}`,
-    isMockFallback: true,
-  };
 }
 
 export async function fetchLiveTracking(
