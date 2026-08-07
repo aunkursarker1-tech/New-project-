@@ -3,12 +3,40 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_BASE_URL = 'https://api-hermes.pathao.com';
 
-// Server-side Supabase client for reading credentials securely
-const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+// Server-side Supabase client using strictly server environment variables (no VITE_ variables)
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
+
+async function logDiagnostic(eventType: string, endpoint: string, requestPayload: any, responseData: any, statusCode: number, errorMsg: string | null) {
+  const logEntry = {
+    provider: 'Pathao',
+    event_type: eventType,
+    endpoint,
+    request_payload: requestPayload ? JSON.stringify(requestPayload) : null,
+    response_data: responseData ? JSON.stringify(responseData) : null,
+    status_code: statusCode,
+    error_message: errorMsg,
+    created_at: new Date().toISOString(),
+  };
+
+  console.log(`[Pathao Diagnostic Log] [${eventType}] Status: ${statusCode} Endpoint: ${endpoint}`, {
+    request: requestPayload,
+    response: responseData,
+    error: errorMsg,
+  });
+
+  if (supabase) {
+    try {
+      await supabase.from('courier_diagnostic_logs').insert([logEntry]);
+    } catch (err) {
+      // If courier_diagnostic_logs table does not exist yet, log warning once and continue
+      console.warn('[Pathao Diagnostic Log] Could not insert into courier_diagnostic_logs table (table might need to be created):', err);
+    }
+  }
+}
 
 async function getPathaoCredentials() {
   let creds = {
@@ -37,10 +65,12 @@ async function getPathaoCredentials() {
           store_id: data.store_id || creds.store_id,
           sandbox: data.sandbox !== undefined ? data.sandbox : creds.sandbox,
         };
-        console.log('[Pathao Service] Loaded Pathao credentials securely from Supabase courier_settings table.');
+        console.log('[Pathao Service] Successfully loaded Pathao credentials from Supabase courier_settings table.');
+      } else if (error) {
+        console.warn('[Pathao Service] courier_settings query error:', error.message);
       }
     } catch (dbErr) {
-      console.warn('[Pathao Service] Failed to fetch from Supabase, falling back to env:', dbErr);
+      console.warn('[Pathao Service] Failed to fetch credentials from Supabase, falling back to env:', dbErr);
     }
   }
 
@@ -51,8 +81,11 @@ async function getPathaoAccessToken(): Promise<string | null> {
   const creds = await getPathaoCredentials();
   const baseUrl = process.env.PATHAO_BASE_URL || DEFAULT_BASE_URL;
 
+  // Verify credentials are fully loaded before requesting token
   if (!creds.client_id || !creds.client_secret || !creds.username || !creds.password) {
-    console.warn('[Pathao OAuth] Missing required Pathao credentials (client_id, client_secret, username, password).');
+    const missingCredsMsg = `Pathao OAuth error: Missing required credentials. (client_id: ${Boolean(creds.client_id)}, client_secret: ${Boolean(creds.client_secret)}, username: ${Boolean(creds.username)}, password: ${Boolean(creds.password)})`;
+    console.error(`[Pathao OAuth] ${missingCredsMsg}`);
+    await logDiagnostic('OAUTH_ERROR', `${baseUrl}/aladdin/api/v1/issue-token`, { client_id: creds.client_id, username: creds.username }, null, 400, missingCredsMsg);
     return null;
   }
 
@@ -62,33 +95,40 @@ async function getPathaoAccessToken(): Promise<string | null> {
 
   const tokenRequestBody = {
     client_id: creds.client_id,
-    client_secret: '***SECRET_MASKED***',
+    client_secret: creds.client_secret,
     username: creds.username,
-    password: '***PASSWORD_MASKED***',
+    password: creds.password,
     grant_type: 'password',
   };
 
-  console.log('[Pathao OAuth Request] POST', `${baseUrl}/aladdin/api/v1/issue-token`, {
-    ...tokenRequestBody,
-    client_secret: creds.client_secret ? '[PRESENT]' : '[MISSING]',
-    password: creds.password ? '[PRESENT]' : '[MISSING]',
-  });
+  const maskedRequestBody = {
+    client_id: creds.client_id,
+    client_secret: '***MASKED***',
+    username: creds.username,
+    password: '***MASKED***',
+    grant_type: 'password',
+  };
+
+  console.log('[Pathao OAuth Request] POST', `${baseUrl}/aladdin/api/v1/issue-token`, maskedRequestBody);
 
   try {
     const res = await fetch(`${baseUrl}/aladdin/api/v1/issue-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: creds.client_id,
-        client_secret: creds.client_secret,
-        username: creds.username,
-        password: creds.password,
-        grant_type: 'password',
-      }),
+      body: JSON.stringify(tokenRequestBody),
     });
 
     const data = await res.json().catch(() => ({}));
-    console.log('[Pathao OAuth Response]', { status: res.status, ok: res.ok, data: { ...data, access_token: data.access_token ? '[MASKED_TOKEN]' : undefined } });
+    const maskedResponse = { ...data, access_token: data.access_token ? '[MASKED_TOKEN]' : undefined };
+
+    await logDiagnostic(
+      res.ok ? 'OAUTH_SUCCESS' : 'OAUTH_ERROR',
+      `${baseUrl}/aladdin/api/v1/issue-token`,
+      maskedRequestBody,
+      maskedResponse,
+      res.status,
+      res.ok ? null : (data.message || JSON.stringify(data))
+    );
 
     if (res.ok && data.access_token) {
       cachedToken = {
@@ -99,8 +139,10 @@ async function getPathaoAccessToken(): Promise<string | null> {
     } else {
       console.error('[Pathao OAuth Error]', data);
     }
-  } catch (err) {
+  } catch (err: any) {
+    const errMessage = err?.message || 'Network exception during token request';
     console.error('[Pathao OAuth Exception]', err);
+    await logDiagnostic('OAUTH_EXCEPTION', `${baseUrl}/aladdin/api/v1/issue-token`, maskedRequestBody, { error: errMessage }, 500, errMessage);
   }
   return null;
 }
@@ -114,8 +156,9 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
   const token = await getPathaoAccessToken();
 
   if (!token) {
-    const errMsg = 'Pathao OAuth authentication failed: Missing or invalid API credentials (client_id, client_secret, username, password) in Supabase or .env';
+    const errMsg = 'Pathao OAuth authentication failed: Unable to obtain access token due to missing or invalid credentials.';
     console.error(`[Pathao Shipment Error] ${errMsg}`);
+    await logDiagnostic('SHIPMENT_AUTH_ERROR', `${baseUrl}/aladdin/api/v1/orders`, { orderId: req.orderId }, { error: errMsg }, 401, errMsg);
     return {
       success: false,
       courierName: 'Pathao Courier',
@@ -130,30 +173,31 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     };
   }
 
+  const payload = {
+    store_id: creds.store_id || 'pth_store_dhanmondi_01',
+    merchant_order_id: String(req.orderId),
+    recipient_name: req.recipientName,
+    recipient_phone: req.recipientPhone,
+    recipient_address: `${req.address}, ${req.thana || ''}, ${req.district}`.replace(/,\s*,/g, ','),
+    recipient_city: req.district.toLowerCase().includes('dhaka') ? 1 : 2,
+    recipient_zone: 1,
+    delivery_type: req.district.toLowerCase().includes('dhaka') ? 48 : 12,
+    item_type: 2,
+    special_instruction: req.specialInstruction || 'Handle with care - E-commerce order',
+    item_quantity: 1,
+    item_weight: req.itemWeightKg || 0.5,
+    amount_to_collect: req.codAmount,
+  };
+
+  console.log('[Pathao Shipment Request Body] POST', `${baseUrl}/aladdin/api/v1/orders`, payload);
+
   try {
-    const payload = {
-      store_id: creds.store_id || 'pth_store_dhanmondi_01',
-      merchant_order_id: req.orderId,
-      recipient_name: req.recipientName,
-      recipient_phone: req.recipientPhone,
-      recipient_address: `${req.address}, ${req.thana}, ${req.district}`,
-      recipient_city: req.district.toLowerCase().includes('dhaka') ? 1 : 2,
-      recipient_zone: 1,
-      delivery_type: req.district.toLowerCase().includes('dhaka') ? 48 : 12,
-      item_type: 2,
-      special_instruction: req.specialInstruction || 'Handle with care - E-commerce order',
-      item_quantity: 1,
-      item_weight: req.itemWeightKg || 0.5,
-      amount_to_collect: req.codAmount,
-    };
-
-    console.log('[Pathao Shipment Request Body] POST', `${baseUrl}/aladdin/api/v1/orders`, payload);
-
     const res = await fetch(`${baseUrl}/aladdin/api/v1/orders`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
       },
       body: JSON.stringify(payload),
     });
@@ -161,9 +205,14 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     const data = await res.json().catch(() => ({}));
     console.log('[Pathao Shipment Response]', { status: res.status, ok: res.ok, data });
 
-    if (res.ok && (data.code === 200 || data.status === 'success') && data.data) {
+    const isSuccess = res.ok && (data.code === 200 || data.code === '200' || data.status === 'success' || data.data?.consignment_id);
+
+    if (isSuccess && data.data) {
       const consignmentId = data.data.consignment_id || `PTH-C-${Math.floor(100000 + Math.random() * 900000)}`;
       const trackingNumber = data.data.tracking_code || consignmentId;
+
+      await logDiagnostic('SHIPMENT_SUCCESS', `${baseUrl}/aladdin/api/v1/orders`, payload, data, res.status, null);
+
       return {
         success: true,
         courierName: 'Pathao Courier',
@@ -177,8 +226,11 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
         isMockFallback: false,
       };
     } else {
-      const exactError = data.message || JSON.stringify(data.errors || data) || `Pathao API error HTTP ${res.status}`;
+      const exactError = data.message || (data.errors ? JSON.stringify(data.errors) : null) || JSON.stringify(data) || `Pathao API error HTTP ${res.status}`;
       console.error(`[Pathao API Error] ${exactError}`);
+
+      await logDiagnostic('SHIPMENT_API_ERROR', `${baseUrl}/aladdin/api/v1/orders`, payload, data, res.status, exactError);
+
       return {
         success: false,
         courierName: 'Pathao Courier',
@@ -195,6 +247,9 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
   } catch (error: any) {
     const errorMsg = error?.message || 'Network connection timeout to Pathao API';
     console.error('[Pathao Shipment Exception]', error);
+
+    await logDiagnostic('SHIPMENT_EXCEPTION', `${baseUrl}/aladdin/api/v1/orders`, payload, { error: errorMsg }, 500, errorMsg);
+
     return {
       success: false,
       courierName: 'Pathao Courier',
