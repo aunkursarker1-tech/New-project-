@@ -48,6 +48,9 @@ async function getPathaoCredentials() {
     sandbox: process.env.PATHAO_SANDBOX === 'true' || true,
   };
 
+  let dbData = null;
+  let dbError = null;
+
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -55,6 +58,12 @@ async function getPathaoCredentials() {
         .select('*')
         .eq('provider', 'Pathao')
         .maybeSingle();
+
+      dbData = data;
+      dbError = error;
+
+      console.log("SUPABASE DATA", data);
+      console.log("SUPABASE ERROR", error);
 
       if (data && !error) {
         creds = {
@@ -70,9 +79,18 @@ async function getPathaoCredentials() {
         console.warn('[Pathao Service] courier_settings query error:', error.message);
       }
     } catch (dbErr) {
+      dbError = dbErr;
+      console.log("SUPABASE DATA", null);
+      console.log("SUPABASE ERROR", dbErr);
       console.warn('[Pathao Service] Failed to fetch credentials from Supabase, falling back to env:', dbErr);
     }
+  } else {
+    console.log("SUPABASE DATA", null);
+    console.log("SUPABASE ERROR", "Supabase client not initialized");
   }
+
+  console.log("CLIENT ID PRESENT", !!creds.client_id);
+  console.log("USERNAME PRESENT", !!creds.username);
 
   return creds;
 }
@@ -109,17 +127,31 @@ async function getPathaoAccessToken(): Promise<string | null> {
     grant_type: 'password',
   };
 
-  console.log('[Pathao OAuth Request] POST', `${baseUrl}/aladdin/api/v1/issue-token`, maskedRequestBody);
+  console.log(`[Pathao OAuth Request] POST ${baseUrl}/aladdin/api/v1/issue-token`, {
+    endpoint: `${baseUrl}/aladdin/api/v1/issue-token`,
+    sandbox: creds.sandbox,
+    client_id: creds.client_id,
+    username: creds.username,
+    has_client_secret: Boolean(creds.client_secret),
+    has_password: Boolean(creds.password),
+    store_id: creds.store_id,
+  });
 
   try {
     const res = await fetch(`${baseUrl}/aladdin/api/v1/issue-token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
       body: JSON.stringify(tokenRequestBody),
     });
 
     const data = await res.json().catch(() => ({}));
-    const maskedResponse = { ...data, access_token: data.access_token ? '[MASKED_TOKEN]' : undefined };
+    const maskedResponse = { 
+      ...data, 
+      access_token: data.access_token ? '[MASKED_TOKEN]' : undefined,
+      refresh_token: data.refresh_token ? '[MASKED_TOKEN]' : undefined,
+    };
+
+    console.log(`[Pathao OAuth Response] HTTP Status: ${res.status} OK: ${res.ok}`, maskedResponse);
 
     await logDiagnostic(
       res.ok ? 'OAUTH_SUCCESS' : 'OAUTH_ERROR',
@@ -137,7 +169,11 @@ async function getPathaoAccessToken(): Promise<string | null> {
       };
       return data.access_token;
     } else {
-      console.error('[Pathao OAuth Error]', data);
+      console.error('[Pathao OAuth Error Details]', {
+        status: res.status,
+        statusText: res.statusText,
+        body: data,
+      });
     }
   } catch (err: any) {
     const errMessage = err?.message || 'Network exception during token request';
