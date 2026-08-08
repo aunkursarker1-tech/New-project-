@@ -39,41 +39,71 @@ async function getSteadfastCredentials() {
   const providerColumnValue = 'Steadfast';
   console.log('[Steadfast Credentials] Querying courier_settings with provider =', providerColumnValue);
 
-  let apiKey = process.env.STEADFAST_API_KEY || '';
-  let secretKey = process.env.STEADFAST_SECRET_KEY || '';
-  let sandbox = true;
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('courier_settings')
-        .select('*')
-        .eq('provider', providerColumnValue)
-        .maybeSingle();
-
-      console.log('[Steadfast Credentials] Supabase query error:', error);
-      console.log('[Steadfast Credentials] Supabase query data:', data);
-
-      if (data && !error) {
-        apiKey = data.client_id || apiKey;
-        secretKey = data.client_secret || secretKey;
-        sandbox = data.sandbox !== undefined ? data.sandbox : sandbox;
-        console.log('[Steadfast Service] Successfully loaded Steadfast credentials from Supabase courier_settings table.');
-      } else if (error) {
-        console.warn('[Steadfast Service] courier_settings query warning:', error.message);
-      }
-    } catch (dbErr) {
-      console.warn('[Steadfast Service] Failed to fetch credentials from Supabase, falling back to env:', dbErr);
-    }
+  if (!supabase) {
+    console.error('[Steadfast Credentials Error] Supabase client is not initialized. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
+    return null;
   }
 
-  console.log('[Steadfast Credential Check] apiKey present:', Boolean(apiKey), 'secretKey present:', Boolean(secretKey));
+  try {
+    const { data, error, count } = await supabase
+      .from('courier_settings')
+      .select('*', { count: 'exact' })
+      .eq('provider', providerColumnValue);
 
-  return {
-    apiKey,
-    secretKey,
-    sandbox,
-  };
+    console.log('[Steadfast Credentials] Supabase query returned error:', error);
+    console.log('[Steadfast Credentials] Supabase query returned data:', data);
+    console.log('[Steadfast Credentials] Total rows returned:', data ? data.length : 0);
+
+    if (error) {
+      console.error('[Steadfast Credentials Error] Supabase query failed:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      console.error('[Steadfast Credentials Error] No row returned from courier_settings for provider = Steadfast. Please configure Steadfast settings in Supabase Admin UI.');
+      return null;
+    }
+
+    if (data.length > 1) {
+      console.warn('[Steadfast Credentials Warning] Multiple rows returned for provider = Steadfast. Using the first row.');
+    } else {
+      console.log('[Steadfast Credentials] Verified query returned exactly one row.');
+    }
+
+    const row = data[0];
+    console.log('[Steadfast Credentials] Exact courier_settings row loaded:', JSON.stringify({
+      id: row.id,
+      provider: row.provider,
+      client_id_present: Boolean(row.client_id),
+      client_secret_present: Boolean(row.client_secret),
+      api_key_present: Boolean(row.api_key),
+      secret_key_present: Boolean(row.secret_key),
+      sandbox: row.sandbox,
+      is_active: row.is_active,
+      updated_at: row.updated_at
+    }, null, 2));
+
+    const apiKey = row.client_id || row.api_key || '';
+    const secretKey = row.client_secret || row.secret_key || '';
+    const sandbox = row.sandbox !== undefined ? row.sandbox : true;
+
+    console.log('[Steadfast Credential Check] apiKey present:', Boolean(apiKey));
+    console.log('[Steadfast Credential Check] secretKey present:', Boolean(secretKey));
+
+    if (!apiKey || !secretKey) {
+      console.error('[Steadfast Credentials Error] One or more required credentials (apiKey/client_id, secretKey/client_secret) are empty in courier_settings!');
+      return null;
+    }
+
+    return {
+      apiKey,
+      secretKey,
+      sandbox,
+    };
+  } catch (err: any) {
+    console.error('[Steadfast Credentials Exception]', err);
+    return null;
+  }
 }
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 2, backoff = 500): Promise<Response> {
