@@ -1,6 +1,53 @@
 import { CourierShipmentRequest, CourierShipmentResponse, CourierTrackingResponse } from './types.js';
+import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_BASE_URL = 'https://portal.steadfast.com.bd/api/v1';
+
+// Server-side Supabase client using strictly server environment variables
+const supabaseUrl = process.env.SUPABASE_URL || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+
+async function getSteadfastCredentials() {
+  const providerColumnValue = 'Steadfast';
+  console.log('[Steadfast Credentials] Querying courier_settings with provider =', providerColumnValue);
+
+  let apiKey = process.env.STEADFAST_API_KEY || '';
+  let secretKey = process.env.STEADFAST_SECRET_KEY || '';
+  let sandbox = true;
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('courier_settings')
+        .select('*')
+        .eq('provider', providerColumnValue)
+        .maybeSingle();
+
+      console.log('[Steadfast Credentials] Supabase query error:', error);
+      console.log('[Steadfast Credentials] Supabase query data:', data);
+
+      if (data && !error) {
+        apiKey = data.client_id || apiKey;
+        secretKey = data.client_secret || secretKey;
+        sandbox = data.sandbox !== undefined ? data.sandbox : sandbox;
+        console.log('[Steadfast Service] Successfully loaded Steadfast credentials from Supabase courier_settings table.');
+      } else if (error) {
+        console.warn('[Steadfast Service] courier_settings query warning:', error.message);
+      }
+    } catch (dbErr) {
+      console.warn('[Steadfast Service] Failed to fetch credentials from Supabase, falling back to env:', dbErr);
+    }
+  }
+
+  console.log('[Steadfast Credential Check] apiKey present:', Boolean(apiKey), 'secretKey present:', Boolean(secretKey));
+
+  return {
+    apiKey,
+    secretKey,
+    sandbox,
+  };
+}
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 2, backoff = 500): Promise<Response> {
   try {
@@ -23,14 +70,15 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, ba
 }
 
 export async function createSteadfastShipment(req: CourierShipmentRequest): Promise<CourierShipmentResponse> {
-  const apiKey = process.env.STEADFAST_API_KEY;
-  const secretKey = process.env.STEADFAST_SECRET_KEY;
+  const creds = await getSteadfastCredentials();
   const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
 
   const trackingNumber = `ST-${Math.floor(10000000 + Math.random() * 90000000)}`;
   const consignmentId = `STF-${Math.floor(100000 + Math.random() * 900000)}`;
 
-  if (!apiKey || !secretKey) {
+  if (!creds.apiKey || !creds.secretKey) {
+    const errMsg = 'Steadfast API Key or Secret Key missing in Supabase courier_settings and environment variables.';
+    console.warn(`[Steadfast Warning] ${errMsg}`);
     return {
       success: true,
       courierName: 'Steadfast Courier',
@@ -39,7 +87,7 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
       status: 'In Review',
       deliveryFee: req.district.toLowerCase() === 'dhaka' ? 60 : 120,
       estimatedDeliveryDays: req.district.toLowerCase() === 'dhaka' ? '24 Hours' : '2-3 Days',
-      message: 'Shipment created locally (Steadfast API Key not configured in .env). Generated tracking ID.',
+      message: 'Shipment created locally (Steadfast credentials not configured). Generated tracking ID.',
       isMockFallback: true,
     };
   }
@@ -49,7 +97,7 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
       invoice: req.orderId,
       recipient_name: req.recipientName,
       recipient_phone: req.recipientPhone,
-      recipient_address: `${req.address}, ${req.thana}, ${req.district}`,
+      recipient_address: `${req.address}, ${req.thana || ''}, ${req.district}`.replace(/,\s*,/g, ','),
       cod_amount: req.codAmount,
       note: req.specialInstruction || `Gadgetghor Order ${req.orderId}`,
     };
@@ -57,8 +105,8 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
     const res = await fetchWithRetry(`${baseUrl}/create_order`, {
       method: 'POST',
       headers: {
-        'Api-Key': apiKey,
-        'Secret-Key': secretKey,
+        'Api-Key': creds.apiKey,
+        'Secret-Key': creds.secretKey,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
@@ -113,19 +161,18 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
 }
 
 export async function getSteadfastTracking(trackingCode: string): Promise<CourierTrackingResponse> {
-  const apiKey = process.env.STEADFAST_API_KEY;
-  const secretKey = process.env.STEADFAST_SECRET_KEY;
+  const creds = await getSteadfastCredentials();
   const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
 
   const now = new Date().toISOString();
 
-  if (apiKey && secretKey) {
+  if (creds.apiKey && creds.secretKey) {
     try {
       const res = await fetchWithRetry(`${baseUrl}/status_by_trackingcode/${encodeURIComponent(trackingCode)}`, {
         method: 'GET',
         headers: {
-          'Api-Key': apiKey,
-          'Secret-Key': secretKey,
+          'Api-Key': creds.apiKey,
+          'Secret-Key': creds.secretKey,
         },
       });
 
