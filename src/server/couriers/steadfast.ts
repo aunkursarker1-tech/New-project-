@@ -35,6 +35,13 @@ async function logDiagnostic(eventType: string, endpoint: string, requestPayload
   }
 }
 
+function sanitizeCredential(val: string): string {
+  if (!val) return '';
+  let cleaned = String(val).trim();
+  cleaned = cleaned.replace(/^(?:API Key|Secret Key|Client ID|Client Secret):\s*/i, '');
+  return cleaned.trim();
+}
+
 async function getSteadfastCredentials() {
   const providerColumnValue = 'Steadfast';
   console.log('[Steadfast Credentials] Querying courier_settings with provider =', providerColumnValue);
@@ -45,53 +52,48 @@ async function getSteadfastCredentials() {
   }
 
   try {
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('courier_settings')
-      .select('*', { count: 'exact' })
-      .eq('provider', providerColumnValue);
+      .select('*')
+      .eq('provider', providerColumnValue)
+      .maybeSingle();
 
     console.log('[Steadfast Credentials] Supabase query returned error:', error);
-    console.log('[Steadfast Credentials] Supabase query returned data:', data);
-    console.log('[Steadfast Credentials] Total rows returned:', data ? data.length : 0);
+    console.log('[Steadfast Credentials] Supabase query returned data:', data ? 'Row found' : 'No row found');
 
     if (error) {
       console.error('[Steadfast Credentials Error] Supabase query failed:', error.message);
       return null;
     }
 
-    if (!data || data.length === 0) {
+    if (!data) {
       console.error('[Steadfast Credentials Error] No row returned from courier_settings for provider = Steadfast. Please configure Steadfast settings in Supabase Admin UI.');
       return null;
     }
 
-    if (data.length > 1) {
-      console.warn('[Steadfast Credentials Warning] Multiple rows returned for provider = Steadfast. Using the first row.');
-    } else {
-      console.log('[Steadfast Credentials] Verified query returned exactly one row.');
-    }
-
-    const row = data[0];
+    const row = data;
     console.log('[Steadfast Credentials] Exact courier_settings row loaded:', JSON.stringify({
       id: row.id,
       provider: row.provider,
       client_id_present: Boolean(row.client_id),
       client_secret_present: Boolean(row.client_secret),
-      api_key_present: Boolean(row.api_key),
-      secret_key_present: Boolean(row.secret_key),
       sandbox: row.sandbox,
       is_active: row.is_active,
       updated_at: row.updated_at
     }, null, 2));
 
-    const apiKey = row.client_id || row.api_key || '';
-    const secretKey = row.client_secret || row.secret_key || '';
+    const rawApiKey = row.client_id || '';
+    const rawSecretKey = row.client_secret || '';
+
+    const apiKey = sanitizeCredential(rawApiKey);
+    const secretKey = sanitizeCredential(rawSecretKey);
     const sandbox = row.sandbox !== undefined ? row.sandbox : true;
 
-    console.log('[Steadfast Credential Check] apiKey present:', Boolean(apiKey));
-    console.log('[Steadfast Credential Check] secretKey present:', Boolean(secretKey));
+    console.log('[Steadfast Credential Check] apiKey present (normalized):', Boolean(apiKey));
+    console.log('[Steadfast Credential Check] secretKey present (normalized):', Boolean(secretKey));
 
     if (!apiKey || !secretKey) {
-      console.error('[Steadfast Credentials Error] One or more required credentials (apiKey/client_id, secretKey/client_secret) are empty in courier_settings!');
+      console.error('[Steadfast Credentials Error] One or more required credentials (client_id for API Key, client_secret for Secret Key) are empty in courier_settings after normalization!');
       return null;
     }
 
