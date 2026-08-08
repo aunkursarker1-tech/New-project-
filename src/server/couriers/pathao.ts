@@ -45,7 +45,7 @@ async function getPathaoCredentials() {
     username: process.env.PATHAO_USERNAME || '',
     password: process.env.PATHAO_PASSWORD || '',
     store_id: process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01',
-    sandbox: process.env.PATHAO_SANDBOX === 'true' || true,
+    sandbox: process.env.PATHAO_SANDBOX === 'true',
   };
 
   let dbData = null;
