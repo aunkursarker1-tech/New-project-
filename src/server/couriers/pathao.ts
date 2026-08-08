@@ -39,69 +39,88 @@ async function logDiagnostic(eventType: string, endpoint: string, requestPayload
 }
 
 async function getPathaoCredentials() {
-  let creds = {
-    client_id: process.env.PATHAO_CLIENT_ID || '',
-    client_secret: process.env.PATHAO_CLIENT_SECRET || '',
-    username: process.env.PATHAO_USERNAME || '',
-    password: process.env.PATHAO_PASSWORD || '',
-    store_id: process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01',
-    sandbox: process.env.PATHAO_SANDBOX === 'true',
-  };
+  const providerColumnValue = 'Pathao';
+  console.log('[Pathao Credentials] Querying courier_settings with provider =', providerColumnValue);
 
-  let dbData = null;
-  let dbError = null;
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase
-        .from('courier_settings')
-        .select('*')
-        .eq('provider', 'Pathao')
-        .maybeSingle();
-
-      dbData = data;
-      dbError = error;
-
-      console.log("SUPABASE DATA", data);
-      console.log("SUPABASE ERROR", error);
-
-      if (data && !error) {
-        creds = {
-          client_id: data.client_id || creds.client_id,
-          client_secret: data.client_secret || creds.client_secret,
-          username: data.username || creds.username,
-          password: data.password || creds.password,
-          store_id: data.store_id || creds.store_id,
-          sandbox: data.sandbox !== undefined ? data.sandbox : creds.sandbox,
-        };
-        console.log('[Pathao Service] Successfully loaded Pathao credentials from Supabase courier_settings table.');
-      } else if (error) {
-        console.warn('[Pathao Service] courier_settings query error:', error.message);
-      }
-    } catch (dbErr) {
-      dbError = dbErr;
-      console.log("SUPABASE DATA", null);
-      console.log("SUPABASE ERROR", dbErr);
-      console.warn('[Pathao Service] Failed to fetch credentials from Supabase, falling back to env:', dbErr);
-    }
-  } else {
-    console.log("SUPABASE DATA", null);
-    console.log("SUPABASE ERROR", "Supabase client not initialized");
+  if (!supabase) {
+    console.error('[Pathao Credentials Error] Supabase client is not initialized. SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set.');
+    return null;
   }
 
-  console.log("CLIENT ID PRESENT", !!creds.client_id);
-  console.log("USERNAME PRESENT", !!creds.username);
+  try {
+    const { data, error, count } = await supabase
+      .from('courier_settings')
+      .select('*', { count: 'exact' })
+      .eq('provider', providerColumnValue);
 
-  return creds;
+    console.log('[Pathao Credentials] Supabase query returned error:', error);
+    console.log('[Pathao Credentials] Supabase query returned data:', data);
+    console.log('[Pathao Credentials] Total rows returned:', data ? data.length : 0);
+
+    if (error) {
+      console.error('[Pathao Credentials Error] Supabase query failed:', error.message);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      console.error('[Pathao Credentials Error] No row returned from courier_settings for provider = Pathao. Please configure Pathao settings in Supabase.');
+      return null;
+    }
+
+    if (data.length > 1) {
+      console.warn('[Pathao Credentials Warning] Multiple rows returned for provider = Pathao. Using the first row.');
+    } else {
+      console.log('[Pathao Credentials] Verified query returned exactly one row.');
+    }
+
+    const row = data[0];
+    console.log('[Pathao Credentials] Exact courier_settings row loaded:', JSON.stringify(row, null, 2));
+
+    const client_id = row.client_id || '';
+    const client_secret = row.client_secret || '';
+    const username = row.username || '';
+    const password = row.password || '';
+    const store_id = row.store_id || 'pth_store_dhanmondi_01';
+    const sandbox = row.sandbox !== undefined ? row.sandbox : true;
+
+    console.log('[Pathao Credential Check] client_id is empty:', !client_id);
+    console.log('[Pathao Credential Check] client_secret is empty:', !client_secret);
+    console.log('[Pathao Credential Check] username is empty:', !username);
+    console.log('[Pathao Credential Check] password is empty:', !password);
+
+    if (!client_id || !client_secret || !username || !password) {
+      console.error('[Pathao Credentials Error] One or more required credentials (client_id, client_secret, username, password) are empty in courier_settings!');
+      return null;
+    }
+
+    return {
+      client_id,
+      client_secret,
+      username,
+      password,
+      store_id,
+      sandbox,
+    };
+  } catch (err: any) {
+    console.error('[Pathao Credentials Exception]', err);
+    return null;
+  }
 }
 
 async function getPathaoAccessToken(): Promise<string | null> {
   const creds = await getPathaoCredentials();
   const baseUrl = process.env.PATHAO_BASE_URL || DEFAULT_BASE_URL;
 
+  if (!creds) {
+    const stopMsg = 'Pathao OAuth stopped immediately: Credentials could not be loaded from courier_settings table.';
+    console.error(`[Pathao OAuth] ${stopMsg}`);
+    await logDiagnostic('OAUTH_STOPPED', `${baseUrl}/aladdin/api/v1/issue-token`, null, null, 400, stopMsg);
+    return null;
+  }
+
   // Verify credentials are fully loaded before requesting token
   if (!creds.client_id || !creds.client_secret || !creds.username || !creds.password) {
-    const missingCredsMsg = `Pathao OAuth error: Missing required credentials. (client_id: ${Boolean(creds.client_id)}, client_secret: ${Boolean(creds.client_secret)}, username: ${Boolean(creds.username)}, password: ${Boolean(creds.password)})`;
+    const missingCredsMsg = `Pathao OAuth error: Missing required credentials in courier_settings. (client_id: ${Boolean(creds.client_id)}, client_secret: ${Boolean(creds.client_secret)}, username: ${Boolean(creds.username)}, password: ${Boolean(creds.password)})`;
     console.error(`[Pathao OAuth] ${missingCredsMsg}`);
     await logDiagnostic('OAUTH_ERROR', `${baseUrl}/aladdin/api/v1/issue-token`, { client_id: creds.client_id, username: creds.username }, null, 400, missingCredsMsg);
     return null;
