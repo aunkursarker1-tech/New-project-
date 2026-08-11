@@ -1,4 +1,4 @@
-export type CourierPartner = 'Steadfast Courier' | 'Pathao Courier' | 'RedX' | 'Paperfly';
+export type CourierPartner = 'Steadfast Courier' | 'Pathao Courier';
 
 export interface CourierShipmentRequest {
   orderId: string;

@@ -19,7 +19,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
   const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
 
   // Selected Provider in Settings Form
-  const [selectedProvider, setSelectedProvider] = useState<'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly'>('Pathao');
+  const [selectedProvider, setSelectedProvider] = useState<'Steadfast' | 'Pathao'>('Steadfast');
 
   // Individual test connection state for Steadfast & Pathao cards
   const [loadingSteadfastTest, setLoadingSteadfastTest] = useState(false);
@@ -127,7 +127,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
     }
   };
 
-  const handleProviderChange = (provider: 'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly') => {
+  const handleProviderChange = (provider: 'Steadfast' | 'Pathao') => {
     setSelectedProvider(provider);
     setTestResult(null);
     loadProviderSettings(provider);
@@ -224,7 +224,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
             <h2 className="text-xl font-black">Courier Integration & API Credentials Management</h2>
           </div>
           <p className="text-xs text-rose-100 mt-1">
-            Configure secure API keys, test handshake connections, and manage automated parcel dispatches for Pathao, RedX, and Paperfly.
+            Configure secure API keys, test handshake connections, and manage automated parcel dispatches for Steadfast Courier and Pathao Courier.
           </p>
         </div>
 
@@ -390,7 +390,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
 
           {/* Provider Selector Tabs */}
           <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-            {(['Steadfast', 'Pathao', 'RedX', 'Paperfly'] as const).map((prov) => (
+            {(['Steadfast', 'Pathao'] as const).map((prov) => (
               <button
                 key={prov}
                 type="button"
@@ -549,7 +549,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {(['Steadfast', 'Pathao', 'RedX', 'Paperfly'] as const).map((courierName) => (
+                  {(['Steadfast', 'Pathao'] as const).map((courierName) => (
                     <button
                       key={courierName}
                       disabled={syncingOrderId === ord.id}

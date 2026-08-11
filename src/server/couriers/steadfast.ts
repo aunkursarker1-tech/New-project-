@@ -272,3 +272,46 @@ export async function getSteadfastTracking(trackingCode: string): Promise<Courie
     ],
   };
 }
+
+export async function testSteadfastConnection(): Promise<{ success: boolean; message: string }> {
+  const creds = await getSteadfastCredentials();
+  const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
+
+  if (!creds.apiKey || !creds.secretKey) {
+    return {
+      success: false,
+      message: '❌ Steadfast API Key or Secret Key missing in server environment variables or database settings.',
+    };
+  }
+
+  try {
+    const res = await fetchWithRetry(`${baseUrl}/get_balance`, {
+      method: 'GET',
+      headers: {
+        'Api-Key': creds.apiKey,
+        'Secret-Key': creds.secretKey,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.ok || res.status === 200 || data.status === 200) {
+      const balanceText = data.current_balance !== undefined ? ` (Balance: ৳${data.current_balance})` : '';
+      return {
+        success: true,
+        message: `✅ Authenticated & Connected to Steadfast Merchant API${balanceText}`,
+      };
+    } else {
+      const errMsg = data.message || `HTTP ${res.status} ${res.statusText}`;
+      return {
+        success: false,
+        message: `❌ Steadfast API Authentication Failed: ${errMsg}`,
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Steadfast Connection Error: ${err?.message || 'Network error'}`,
+    };
+  }
+}

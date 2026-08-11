@@ -102,7 +102,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
   const statuses: { label: OrderStatus; desc: string }[] = [
     { label: 'Pending', desc: 'Order logged & inventory reserved' },
     { label: 'Processing', desc: 'Quality checked & assigned to courier hub' },
-    { label: 'Shipped', desc: 'Dispatched via Pathao/RedX/Paperfly' },
+    { label: 'Shipped', desc: 'Dispatched via Steadfast/Pathao Courier' },
     { label: 'Out for Delivery', desc: 'Assigned to delivery executive' },
     { label: 'Delivered', desc: 'Delivered & COD settled' },
   ];
@@ -124,7 +124,7 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
             </div>
             <div>
               <h2 className="text-base font-extrabold leading-tight">Bangladeshi Courier Live Tracker</h2>
-              <p className="text-[11px] text-slate-400">Real-time status from Pathao, RedX & Paperfly APIs</p>
+              <p className="text-[11px] text-slate-400">Real-time status from Steadfast & Pathao Courier APIs</p>
             </div>
           </div>
 

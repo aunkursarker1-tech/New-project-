@@ -364,13 +364,12 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                   {editingTrackingId === ord.id ? (
                     <div className="flex gap-1.5 pt-1">
                       <select
-                        value={tempCourierName}
+                        value={tempCourierName || 'Pathao Courier'}
                         onChange={(e: any) => setTempCourierName(e.target.value)}
                         className="bg-slate-900 border border-slate-800 text-[10px] rounded p-1 text-white font-bold"
                       >
-                        <option value="Pathao Courier">Pathao</option>
-                        <option value="RedX">RedX</option>
-                        <option value="Paperfly">Paperfly</option>
+                        <option value="Pathao Courier">Pathao Courier</option>
+                        <option value="Steadfast Courier">Steadfast Courier</option>
                       </select>
                       <input
                         type="text"

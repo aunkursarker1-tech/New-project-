@@ -102,7 +102,7 @@ export interface ShippingAddress {
   notes?: string;
 }
 
-export type CourierName = 'Steadfast Courier' | 'Pathao Courier' | 'RedX' | 'Paperfly';
+export type CourierName = 'Steadfast Courier' | 'Pathao Courier';
 
 export interface CourierTrackingEvent {
   timestamp: string;
@@ -277,8 +277,6 @@ export interface CourierApiConfig {
   steadfastSecret?: string;
   pathaoClientId: string;
   pathaoSecret: string;
-  redxApiKey: string;
-  paperflyApiKey: string;
   autoSyncOrders: boolean;
   activeDefaultCourier: CourierName;
 }

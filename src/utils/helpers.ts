@@ -21,11 +21,9 @@ export function generateOrderId(): string {
 }
 
 export function generateTrackingNumber(courier: string): string {
-  const prefix = courier.includes('Pathao')
-    ? 'PTH'
-    : courier.includes('RedX')
-    ? 'RDX'
-    : 'PFLY';
+  const prefix = courier.includes('Steadfast')
+    ? 'STF'
+    : 'PTH';
   const random = Math.floor(100000 + Math.random() * 900000);
   return `${prefix}-BD-${random}`;
 }

@@ -52,8 +52,6 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
   return [
     { courier: 'Steadfast Courier', configured: true, active: true, baseUrl: 'https://portal.steadfast.com.bd/api/v1', message: 'Ready via Steadfast Merchant Portal' },
     { courier: 'Pathao Courier', configured: true, active: true, baseUrl: 'https://api-hermes.pathao.com', message: 'Ready via Pathao Hermes API' },
-    { courier: 'RedX', configured: true, active: true, baseUrl: 'https://openapi.redx.com.bd/v1.0.0', message: 'Ready via RedX OpenAPI' },
-    { courier: 'Paperfly', configured: true, active: true, baseUrl: 'https://paperflybd.com/api/v1', message: 'Ready via Paperfly API' },
   ];
 }
 
@@ -111,7 +109,7 @@ export async function fetchLiveTracking(
   }
 
   const now = new Date().toISOString();
-  const guessedCourier = courierName || (trackingNumber.startsWith('PTH') ? 'Pathao Courier' : trackingNumber.startsWith('RDX') ? 'RedX' : trackingNumber.startsWith('PF') ? 'Paperfly' : 'Pathao Courier');
+  const guessedCourier = courierName || (trackingNumber.startsWith('ST') || trackingNumber.startsWith('STF') ? 'Steadfast Courier' : 'Pathao Courier');
 
   return {
     success: true,

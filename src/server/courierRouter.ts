@@ -1,5 +1,7 @@
 import { Router } from 'express';
 import { createShipment, getTrackingInfo, getHealthStatus, autoSelectCourier } from './couriers/courierService.js';
+import { testSteadfastConnection } from './couriers/steadfast.js';
+import { testPathaoConnection } from './couriers/pathao.js';
 import { CourierShipmentRequest, CourierPartner } from './couriers/types.js';
 
 export const courierRouter = Router();
@@ -75,48 +77,40 @@ courierRouter.post('/settings', (req, res) => {
 
 // 4. Test Connection API Endpoint
 courierRouter.post('/test-connection', async (req, res) => {
-  const { provider, client_id, client_secret, username, password, store_id } = req.body;
-  const startTime = Date.now();
-  console.log(`[Courier Test Connection] Testing API for provider: ${provider}`);
+  const { provider } = req.body;
+  console.log(`[Courier Test Connection] Running real API test for provider: ${provider}`);
 
   try {
-    // Validate required keys based on provider
-    if (provider === 'Pathao' && (!client_id || !client_secret)) {
-      throw new Error('Pathao Client ID and Client Secret are required for authentication.');
-    }
     if (provider === 'Steadfast') {
-      const hasEnvKey = Boolean(process.env.STEADFAST_API_KEY || process.env.STEADFAST_SECRET_KEY);
-      if (!client_id && !hasEnvKey) {
-        throw new Error('Steadfast API Key / Client ID is required.');
-      }
+      const result = await testSteadfastConnection();
+      return res.status(result.success ? 200 : 400).json({
+        success: result.success,
+        message: result.message,
+        provider: 'Steadfast',
+        status: result.success ? 'Connected' : 'Failed',
+        timestamp: new Date().toISOString()
+      });
+    } else if (provider === 'Pathao') {
+      const result = await testPathaoConnection();
+      return res.status(result.success ? 200 : 400).json({
+        success: result.success,
+        message: result.message,
+        provider: 'Pathao',
+        status: result.success ? 'Connected' : 'Failed',
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: `Unsupported courier provider: ${provider}`,
+        status: 'Failed'
+      });
     }
-    if (provider === 'RedX' && !client_id) {
-      throw new Error('RedX API Token is required.');
-    }
-    if (provider === 'Paperfly' && !client_id) {
-      throw new Error('Paperfly API Key is required.');
-    }
-
-    // Simulate real API handshake test with timeout protection
-    await new Promise((resolve) => setTimeout(resolve, 800));
-
-    // If client_id contains invalid test tokens or empty, simulate API auth rejection error
-    if (client_id && client_id.includes('invalid_test_error')) {
-      throw new Error('API Authentication Failed: Invalid API Key or Secret provided (401 Unauthorized)');
-    }
-
-    res.json({
-      success: true,
-      message: `✅ Connection Successful to ${provider} API (${Date.now() - startTime}ms)`,
-      provider,
-      status: 'Connected',
-      timestamp: new Date().toISOString()
-    });
   } catch (err: any) {
     console.error(`[Courier Test Connection Error] ${provider}:`, err);
     res.status(400).json({
       success: false,
-      message: err?.message || `Connection failed to ${provider} API`,
+      message: err?.message || `Connection test failed for ${provider} API`,
       provider,
       status: 'Failed'
     });

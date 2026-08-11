@@ -375,3 +375,25 @@ export async function getPathaoTracking(trackingCode: string): Promise<CourierTr
     ],
   };
 }
+
+export async function testPathaoConnection(): Promise<{ success: boolean; message: string }> {
+  try {
+    const token = await getPathaoAccessToken();
+    if (token) {
+      return {
+        success: true,
+        message: '✅ Authenticated & Connected to Pathao Hermes OAuth API',
+      };
+    } else {
+      return {
+        success: false,
+        message: '❌ Pathao OAuth Authentication Failed: Unable to obtain access token with stored credentials',
+      };
+    }
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `❌ Pathao Connection Error: ${err?.message || 'Network error'}`,
+    };
+  }
+}
