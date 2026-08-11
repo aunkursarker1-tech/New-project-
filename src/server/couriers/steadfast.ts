@@ -3,6 +3,52 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_BASE_URL = 'https://portal.steadfast.com.bd/api/v1';
 
+export function getSteadfastBaseUrl(): string {
+  let url = (process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL).trim();
+  url = url.replace(/^["']|["']$/g, '');
+  url = url.replace(/\/+$/, '');
+  if (!url || url === 'undefined' || url === 'null') {
+    url = DEFAULT_BASE_URL;
+  }
+  return url;
+}
+
+function formatFetchError(err: any): { category: string; detailedMsg: string } {
+  const name = err?.name || '';
+  const msg = err?.message || '';
+  const cause = err?.cause || {};
+  const causeCode = cause?.code || cause?.errno || '';
+  const causeMsg = cause?.message || '';
+
+  const fullText = `${name} ${msg} ${causeCode} ${causeMsg}`.toLowerCase();
+
+  let category = 'Network Error';
+
+  if (name === 'AbortError' || fullText.includes('timeout') || causeCode.includes('timeout') || causeCode === 'UND_ERR_CONNECT_TIMEOUT') {
+    category = 'Connection Timeout (8s limit exceeded)';
+  } else if (causeCode === 'ENOTFOUND' || causeCode === 'EAI_AGAIN' || fullText.includes('getaddrinfo')) {
+    category = 'DNS / Domain Resolution Failure';
+  } else if (causeCode === 'ECONNREFUSED') {
+    category = 'Connection Refused by Server';
+  } else if (causeCode === 'ECONNRESET') {
+    category = 'Connection Reset by Peer';
+  } else if (fullText.includes('cert') || fullText.includes('tls') || fullText.includes('ssl') || causeCode.includes('CERT')) {
+    category = 'TLS/SSL Handshake Failure';
+  } else if (fullText.includes('invalid url')) {
+    category = 'Invalid URL Format';
+  } else if (msg === 'fetch failed' && causeMsg) {
+    category = `Network Failure (${causeMsg})`;
+  } else if (msg && msg !== 'fetch failed') {
+    category = `Network Failure (${msg})`;
+  } else if (causeCode) {
+    category = `Network Failure (${causeCode})`;
+  }
+
+  const detailedMsg = causeMsg ? `${msg} [Cause: ${causeCode || 'N/A'} - ${causeMsg}]` : msg || 'Unknown fetch error';
+
+  return { category, detailedMsg };
+}
+
 // Server-side Supabase client using strictly server environment variables
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
@@ -98,7 +144,7 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, ba
 
 export async function createSteadfastShipment(req: CourierShipmentRequest): Promise<CourierShipmentResponse> {
   const creds = await getSteadfastCredentials();
-  const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
+  const baseUrl = getSteadfastBaseUrl();
   const endpoint = `${baseUrl}/create_order`;
 
   if (!creds.apiKey || !creds.secretKey) {
@@ -190,10 +236,10 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
       };
     }
   } catch (error: any) {
-    const errorMsg = error?.message || 'Network connection timeout to Steadfast API';
-    console.error('[Steadfast Shipment Exception]', error);
+    const { category, detailedMsg } = formatFetchError(error);
+    console.error('[Steadfast Shipment Exception]', { endpoint, category, detailedMsg, error });
 
-    await logDiagnostic('SHIPMENT_EXCEPTION', endpoint, payload, { error: errorMsg }, 500, errorMsg);
+    await logDiagnostic('SHIPMENT_EXCEPTION', endpoint, payload, { error: detailedMsg }, 500, detailedMsg);
 
     return {
       success: false,
@@ -203,8 +249,8 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
       status: 'Failed',
       deliveryFee: 0,
       estimatedDeliveryDays: 'N/A',
-      message: `Steadfast Connection Error: ${errorMsg}`,
-      errorDetails: errorMsg,
+      message: `Steadfast Connection Error: ${category}`,
+      errorDetails: detailedMsg,
       isMockFallback: false,
     };
   }
@@ -212,7 +258,7 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
 
 export async function getSteadfastTracking(trackingCode: string): Promise<CourierTrackingResponse> {
   const creds = await getSteadfastCredentials();
-  const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
+  const baseUrl = getSteadfastBaseUrl();
 
   const now = new Date().toISOString();
 
@@ -223,6 +269,7 @@ export async function getSteadfastTracking(trackingCode: string): Promise<Courie
         headers: {
           'Api-Key': creds.apiKey,
           'Secret-Key': creds.secretKey,
+          'Content-Type': 'application/json',
         },
       });
 
@@ -275,9 +322,21 @@ export async function getSteadfastTracking(trackingCode: string): Promise<Courie
 
 export async function testSteadfastConnection(): Promise<{ success: boolean; message: string }> {
   const creds = await getSteadfastCredentials();
-  const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
+  const baseUrl = getSteadfastBaseUrl();
+  const testUrl = `${baseUrl}/get_balance`;
 
-  if (!creds.apiKey || !creds.secretKey) {
+  const hasApiKey = Boolean(creds.apiKey);
+  const hasSecretKey = Boolean(creds.secretKey);
+
+  console.log('[Steadfast Connection Test Diagnostics]', {
+    baseUrl,
+    testUrl,
+    method: 'GET',
+    hasApiKey,
+    hasSecretKey,
+  });
+
+  if (!hasApiKey || !hasSecretKey) {
     return {
       success: false,
       message: '❌ Steadfast API Key or Secret Key missing in server environment variables or database settings.',
@@ -285,15 +344,22 @@ export async function testSteadfastConnection(): Promise<{ success: boolean; mes
   }
 
   try {
-    const res = await fetchWithRetry(`${baseUrl}/get_balance`, {
+    const res = await fetchWithRetry(testUrl, {
       method: 'GET',
       headers: {
         'Api-Key': creds.apiKey,
         'Secret-Key': creds.secretKey,
+        'Content-Type': 'application/json',
       },
     });
 
     const data = await res.json().catch(() => ({}));
+
+    console.log('[Steadfast Connection Test Response]', {
+      status: res.status,
+      ok: res.ok,
+      data,
+    });
 
     if (res.ok || res.status === 200 || data.status === 200) {
       const balanceText = data.current_balance !== undefined ? ` (Balance: ৳${data.current_balance})` : '';
@@ -302,16 +368,25 @@ export async function testSteadfastConnection(): Promise<{ success: boolean; mes
         message: `✅ Authenticated & Connected to Steadfast Merchant API${balanceText}`,
       };
     } else {
-      const errMsg = data.message || `HTTP ${res.status} ${res.statusText}`;
+      const errMsg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || `HTTP ${res.status} ${res.statusText}`;
+      console.error('[Steadfast Connection Test Failed]', { status: res.status, errMsg });
       return {
         success: false,
         message: `❌ Steadfast API Authentication Failed: ${errMsg}`,
       };
     }
   } catch (err: any) {
+    const { category, detailedMsg } = formatFetchError(err);
+    console.error('[Steadfast Connection Test Exception]', {
+      testUrl,
+      category,
+      detailedMsg,
+      error: err,
+    });
+
     return {
       success: false,
-      message: `❌ Steadfast Connection Error: ${err?.message || 'Network error'}`,
+      message: `❌ Steadfast Connection Error: ${category}`,
     };
   }
 }
