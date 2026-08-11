@@ -88,7 +88,12 @@ courierRouter.post('/test-connection', async (req, res) => {
         message: result.message,
         provider: 'Steadfast',
         status: result.success ? 'Connected' : 'Failed',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        baseUrl: result.baseUrl,
+        testUrl: result.testUrl,
+        hostname: result.hostname,
+        dnsLookup: result.dnsLookup,
+        httpStatus: result.status,
       });
     } else if (provider === 'Pathao') {
       const result = await testPathaoConnection();

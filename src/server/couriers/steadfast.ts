@@ -1,7 +1,8 @@
 import { CourierShipmentRequest, CourierShipmentResponse, CourierTrackingResponse } from './types.js';
 import { createClient } from '@supabase/supabase-js';
+import dns from 'dns/promises';
 
-const DEFAULT_BASE_URL = 'https://portal.steadfast.com.bd/api/v1';
+const DEFAULT_BASE_URL = 'https://portal.packzy.com/api/v1';
 
 export function getSteadfastBaseUrl(): string {
   let url = (process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL).trim();
@@ -11,6 +12,30 @@ export function getSteadfastBaseUrl(): string {
     url = DEFAULT_BASE_URL;
   }
   return url;
+}
+
+export function getSteadfastHostname(baseUrl: string): string {
+  try {
+    const parsed = new URL(baseUrl);
+    return parsed.hostname;
+  } catch {
+    return 'portal.packzy.com';
+  }
+}
+
+async function checkDns(hostname: string): Promise<{ success: boolean; ips: string[]; errorCode?: string; errorMessage?: string }> {
+  try {
+    const records = await dns.lookup(hostname, { all: true });
+    const ips = records.map((r) => r.address);
+    return { success: true, ips };
+  } catch (err: any) {
+    return {
+      success: false,
+      ips: [],
+      errorCode: err?.code || err?.errno || 'ENOTFOUND',
+      errorMessage: err?.message || `DNS lookup failed for ${hostname}`,
+    };
+  }
 }
 
 function formatFetchError(err: any): { category: string; detailedMsg: string } {
@@ -320,26 +345,60 @@ export async function getSteadfastTracking(trackingCode: string): Promise<Courie
   };
 }
 
-export async function testSteadfastConnection(): Promise<{ success: boolean; message: string }> {
+export async function testSteadfastConnection(): Promise<{
+  success: boolean;
+  message: string;
+  baseUrl?: string;
+  testUrl?: string;
+  hostname?: string;
+  dnsLookup?: { success: boolean; ips: string[]; errorCode?: string; errorMessage?: string };
+  status?: number;
+}> {
   const creds = await getSteadfastCredentials();
   const baseUrl = getSteadfastBaseUrl();
   const testUrl = `${baseUrl}/get_balance`;
+  const hostname = getSteadfastHostname(baseUrl);
 
   const hasApiKey = Boolean(creds.apiKey);
   const hasSecretKey = Boolean(creds.secretKey);
 
+  // Safe diagnostics only — NEVER log credentials
   console.log('[Steadfast Connection Test Diagnostics]', {
     baseUrl,
     testUrl,
-    method: 'GET',
+    hostname,
     hasApiKey,
     hasSecretKey,
   });
+
+  // 1. Server-side DNS resolution check
+  const dnsResult = await checkDns(hostname);
+  console.log('[Steadfast DNS Lookup Result]', {
+    hostname,
+    dnsResult,
+  });
+
+  if (!dnsResult.success) {
+    const dnsFailMsg = `❌ Steadfast DNS Resolution Failure (${dnsResult.errorCode || 'ENOTFOUND'}): The server could not resolve hostname '${hostname}'.`;
+    console.error('[Steadfast DNS Failure]', { hostname, dnsResult });
+    return {
+      success: false,
+      message: dnsFailMsg,
+      baseUrl,
+      testUrl,
+      hostname,
+      dnsLookup: dnsResult,
+    };
+  }
 
   if (!hasApiKey || !hasSecretKey) {
     return {
       success: false,
       message: '❌ Steadfast API Key or Secret Key missing in server environment variables or database settings.',
+      baseUrl,
+      testUrl,
+      hostname,
+      dnsLookup: dnsResult,
     };
   }
 
@@ -366,13 +425,28 @@ export async function testSteadfastConnection(): Promise<{ success: boolean; mes
       return {
         success: true,
         message: `✅ Authenticated & Connected to Steadfast Merchant API${balanceText}`,
+        status: res.status,
+        baseUrl,
+        testUrl,
+        hostname,
+        dnsLookup: dnsResult,
       };
     } else {
-      const errMsg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || `HTTP ${res.status} ${res.statusText}`;
+      let httpErrorType = `HTTP ${res.status}`;
+      if (res.status === 401 || res.status === 403) httpErrorType = `HTTP ${res.status} Unauthorized / Forbidden`;
+      else if (res.status === 404) httpErrorType = `HTTP 404 Not Found`;
+      else if (res.status >= 500) httpErrorType = `HTTP ${res.status} Server Error`;
+
+      const errMsg = data.message || (data.errors ? JSON.stringify(data.errors) : null) || `${httpErrorType} ${res.statusText}`;
       console.error('[Steadfast Connection Test Failed]', { status: res.status, errMsg });
       return {
         success: false,
-        message: `❌ Steadfast API Authentication Failed: ${errMsg}`,
+        message: `❌ Steadfast API Authentication Failed (${httpErrorType}): ${errMsg}`,
+        status: res.status,
+        baseUrl,
+        testUrl,
+        hostname,
+        dnsLookup: dnsResult,
       };
     }
   } catch (err: any) {
@@ -387,6 +461,10 @@ export async function testSteadfastConnection(): Promise<{ success: boolean; mes
     return {
       success: false,
       message: `❌ Steadfast Connection Error: ${category}`,
+      baseUrl,
+      testUrl,
+      hostname,
+      dnsLookup: dnsResult,
     };
   }
 }
