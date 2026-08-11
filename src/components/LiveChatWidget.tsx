@@ -40,7 +40,7 @@ export const LiveChatWidget: React.FC<LiveChatWidgetProps> = ({ darkMode }) => {
           'We accept bKash, Nagad, Visa/Mastercard cards, and 100% Cash on Delivery (COD)! Enter coupon code BKASH200 for ৳200 flat discount on bKash payments.';
       } else if (lower.includes('delivery') || lower.includes('dhaka') || lower.includes('shipping')) {
         botResponse =
-          'Inside Dhaka City delivery fee is ৳60 (Free on orders above ৳2,000!). Outside Dhaka shipping fee is ৳120 via Steadfast/Pathao Courier.';
+          'Inside Dhaka City delivery fee is ৳60 (Free on orders above ৳2,000!). Outside Dhaka shipping fee is ৳120 via Pathao Courier.';
       } else if (lower.includes('warranty') || lower.includes('replacement')) {
         botResponse =
           'All products carry official manufacturer warranty (6 Months to 1 Year). We offer a 7 Days Easy Replacement guarantee for hardware defects!';

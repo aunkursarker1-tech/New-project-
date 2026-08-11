@@ -196,7 +196,7 @@ export function getAuditLogs(): AuditLogEntry[] {
 
   return [
     { id: 'log-1', action: '2FA Session Verification', performedBy: 'Admin (aunkur@gadgetghor.bd)', timestamp: new Date(Date.now() - 3600000).toISOString(), ipAddress: '103.112.44.18', details: 'Successful OTP Login with SMS 2FA', category: 'Security' },
-    { id: 'log-2', action: 'Courier Webhook Sync', performedBy: 'Steadfast Courier API', timestamp: new Date(Date.now() - 7200000).toISOString(), ipAddress: '180.211.230.12', details: 'Status updated to Out for Delivery for GG-BD-9021', category: 'Order' },
+    { id: 'log-2', action: 'Courier Webhook Sync', performedBy: 'Pathao Courier API', timestamp: new Date(Date.now() - 7200000).toISOString(), ipAddress: '180.211.230.12', details: 'Status updated to Out for Delivery for GG-BD-9021', category: 'Order' },
     { id: 'log-3', action: 'Product Price Updated', performedBy: 'Inventory Manager', timestamp: new Date(Date.now() - 14400000).toISOString(), ipAddress: '103.112.44.18', details: 'Baseus Power Bank 20000mAh price updated from 2800 to 2450 BDT', category: 'Product' },
     { id: 'log-4', action: 'High Risk Order Flagged', performedBy: 'AI Fraud Detection Engine', timestamp: new Date(Date.now() - 28800000).toISOString(), ipAddress: '103.112.44.18', details: 'Order GG-BD-8812 marked as High Risk (Score 88)', category: 'Security' },
   ];

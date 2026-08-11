@@ -126,9 +126,6 @@ export const Footer: React.FC<FooterProps> = ({
 
             <p className="text-[11px] text-slate-400 pt-2">Courier Partners:</p>
             <div className="flex flex-wrap gap-1.5">
-              <span className="px-2 py-1 rounded bg-slate-800 text-cyan-400 font-bold text-[10px]">
-                Steadfast Courier
-              </span>
               <span className="px-2 py-1 rounded bg-slate-800 text-rose-400 font-bold text-[10px]">
                 Pathao Courier
               </span>

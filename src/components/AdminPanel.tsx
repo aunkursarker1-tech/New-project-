@@ -236,7 +236,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="p-5 rounded-2xl bg-gradient-to-br from-cyan-950 to-slate-900 border border-cyan-800 space-y-1">
                   <span className="text-xs text-slate-400 font-medium">Total Orders</span>
                   <div className="text-2xl font-black text-cyan-400">{totalOrdersCount}</div>
-                  <p className="text-[10px] text-cyan-300">Dispatched via Steadfast & Pathao</p>
+                  <p className="text-[10px] text-cyan-300">Dispatched via Pathao Courier</p>
                 </div>
 
                 <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-950 to-slate-900 border border-amber-800 space-y-1">

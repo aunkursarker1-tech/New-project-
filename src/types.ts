@@ -273,8 +273,8 @@ export interface AuditLogEntry {
 }
 
 export interface CourierApiConfig {
-  steadfastApiKey: string;
-  steadfastSecret: string;
+  steadfastApiKey?: string;
+  steadfastSecret?: string;
   pathaoClientId: string;
   pathaoSecret: string;
   redxApiKey: string;

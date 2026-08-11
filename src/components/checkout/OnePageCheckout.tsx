@@ -308,7 +308,7 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
     setIsSubmitting(true);
 
     const orderId = generateOrderId();
-    const courier = isDhakaMetro ? 'Steadfast Courier' : 'Pathao Courier';
+    const courier = 'Pathao Courier';
     const trackingNo = generateTrackingNumber(courier);
 
     const fullShippingAddress = {
@@ -788,7 +788,7 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
               <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-bold text-slate-400 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800">
                 <span>Courier:</span>
                 <span className="text-emerald-400 font-extrabold">
-                  {isDhakaMetro ? 'Steadfast Courier' : 'Pathao Courier'}
+                  Pathao Courier
                 </span>
               </div>
             </div>

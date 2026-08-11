@@ -179,7 +179,7 @@ export const AnalyticsSection: React.FC<AnalyticsSectionProps> = ({
 
             <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 space-y-2">
               <div className="flex justify-between font-bold text-cyan-400">
-                <span>Steadfast Courier (Same Day / Next Day)</span>
+                <span>Express Courier (Same Day / Next Day)</span>
                 <span>72% Fulfillment</span>
               </div>
               <p className="text-[11px] text-slate-300">Average delivery speed in Dhaka: 14 hours.</p>

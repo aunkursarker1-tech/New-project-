@@ -296,7 +296,7 @@ export const DashboardSection: React.FC<DashboardSectionProps> = ({
                 <Truck className="w-4 h-4" />
               </div>
               <div className="text-2xl font-black">{shippedCount}</div>
-              <p className="text-[10px] text-indigo-300">Steadfast / Pathao</p>
+              <p className="text-[10px] text-indigo-300">Pathao / Courier</p>
             </div>
 
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 space-y-1">

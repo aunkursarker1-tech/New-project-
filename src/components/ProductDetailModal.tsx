@@ -428,14 +428,14 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-800 space-y-2">
                     <h4 className="font-bold text-emerald-400 text-sm">Official Warranty Policy</h4>
                     <p className="text-slate-300 leading-relaxed">
-                      This product comes with <strong>{product.warrantyInfo}</strong>. In case of any hardware defect, bring it to our Multiplan Center store or mail it via Steadfast Courier for instant replacement.
+                      This product comes with <strong>{product.warrantyInfo}</strong>. In case of any hardware defect, bring it to our Multiplan Center store or mail it via Pathao Courier for instant replacement.
                     </p>
                   </div>
                   <div className="p-4 rounded-2xl bg-slate-800/40 border border-slate-800 space-y-2">
                     <h4 className="font-bold text-cyan-400 text-sm">Delivery & Payment Terms</h4>
                     <ul className="space-y-1 text-slate-300">
                       <li>• Dhaka City: Same Day or 24-Hour Express Home Delivery (৳60)</li>
-                      <li>• Outside Dhaka: 2-3 Days via Steadfast/Pathao Courier (৳120)</li>
+                      <li>• Outside Dhaka: 2-3 Days via Pathao Courier (৳120)</li>
                       <li>• Cash on Delivery available across all 64 districts in Bangladesh</li>
                     </ul>
                   </div>

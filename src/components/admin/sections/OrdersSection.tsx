@@ -47,7 +47,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   const [paymentFilter, setPaymentFilter] = useState<string>('All');
   const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
   const [tempTrackingNum, setTempTrackingNum] = useState('');
-  const [tempCourierName, setTempCourierName] = useState<CourierName>('Steadfast Courier');
+  const [tempCourierName, setTempCourierName] = useState<CourierName>('Pathao Courier');
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Modal states for Tracking, Consignment, Label
@@ -80,7 +80,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
   const handleCreateShipment = async (order: Order) => {
     setActionLoadingId(order.id);
     try {
-      const res = await dispatchOrderToCourier(order, order.courierName || 'Steadfast Courier');
+      const res = await dispatchOrderToCourier(order, order.courierName || 'Pathao Courier');
       if (res.success && onUpdateCourierInfo) {
         onUpdateCourierInfo(order.id, res.courierName, res.trackingNumber);
         onUpdateOrderStatus(order.id, 'Shipped');
@@ -348,7 +348,7 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
 
                 <div className="pt-2 border-t border-slate-800 space-y-2">
                   <div className="flex justify-between items-center text-[11px]">
-                    <span className="text-slate-400">Courier: <strong>{ord.courierName || 'Steadfast'}</strong></span>
+                    <span className="text-slate-400">Courier: <strong>{ord.courierName || 'Pathao'}</strong></span>
                     <button
                       onClick={() => {
                         setEditingTrackingId(ord.id);
@@ -368,7 +368,6 @@ export const OrdersSection: React.FC<OrdersSectionProps> = ({
                         onChange={(e: any) => setTempCourierName(e.target.value)}
                         className="bg-slate-900 border border-slate-800 text-[10px] rounded p-1 text-white font-bold"
                       >
-                        <option value="Steadfast Courier">Steadfast</option>
                         <option value="Pathao Courier">Pathao</option>
                         <option value="RedX">RedX</option>
                         <option value="Paperfly">Paperfly</option>

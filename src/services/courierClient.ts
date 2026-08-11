@@ -42,7 +42,7 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.couriers)) {
-        return data.couriers;
+        return data.couriers.filter((c: any) => !c.courier?.includes('Steadfast'));
       }
     }
   } catch (err) {
@@ -50,7 +50,6 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
   }
 
   return [
-    { courier: 'Steadfast Courier', configured: true, active: true, baseUrl: 'https://portal.steadfast.com.bd/api/v1', message: 'Ready via Steadfast Merchant Portal' },
     { courier: 'Pathao Courier', configured: true, active: true, baseUrl: 'https://api-hermes.pathao.com', message: 'Ready via Pathao Hermes API' },
     { courier: 'RedX', configured: true, active: true, baseUrl: 'https://openapi.redx.com.bd/v1.0.0', message: 'Ready via RedX OpenAPI' },
     { courier: 'Paperfly', configured: true, active: true, baseUrl: 'https://paperflybd.com/api/v1', message: 'Ready via Paperfly API' },
@@ -63,7 +62,7 @@ export async function dispatchOrderToCourier(
   specialInstruction?: string,
   weight: number = 0.5
 ): Promise<DispatchResponse> {
-  const chosenCourier = courierName || order.courierName || 'Steadfast Courier';
+  const chosenCourier = courierName || order.courierName || 'Pathao Courier';
 
   try {
     const res = await fetch('/api/courier/create-shipment', {
@@ -111,12 +110,12 @@ export async function fetchLiveTracking(
   }
 
   const now = new Date().toISOString();
-  const guessedCourier = courierName || (trackingNumber.startsWith('PTH') ? 'Pathao Courier' : trackingNumber.startsWith('RDX') ? 'RedX' : trackingNumber.startsWith('PF') ? 'Paperfly' : 'Steadfast Courier');
+  const guessedCourier = courierName || (trackingNumber.startsWith('PTH') ? 'Pathao Courier' : trackingNumber.startsWith('RDX') ? 'RedX' : trackingNumber.startsWith('PF') ? 'Paperfly' : 'Pathao Courier');
 
   return {
     success: true,
     courierName: guessedCourier,
-    trackingNumber: trackingNumber || 'ST-981240',
+    trackingNumber: trackingNumber || 'PTH-981240',
     currentStatus: 'Shipped',
     rawCourierStatus: 'in_transit',
     riderName: 'Farhan Kabir (Delivery Executive)',

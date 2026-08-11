@@ -8,6 +8,33 @@ const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
 
+async function logDiagnostic(eventType: string, endpoint: string, requestPayload: any, responseData: any, statusCode: number, errorMsg: string | null) {
+  const logEntry = {
+    provider: 'Steadfast',
+    event_type: eventType,
+    endpoint,
+    request_payload: requestPayload ? JSON.stringify(requestPayload) : null,
+    response_data: responseData ? JSON.stringify(responseData) : null,
+    status_code: statusCode,
+    error_message: errorMsg,
+    created_at: new Date().toISOString(),
+  };
+
+  console.log(`[Steadfast Diagnostic Log] [${eventType}] Status: ${statusCode} Endpoint: ${endpoint}`, {
+    request: requestPayload,
+    response: responseData,
+    error: errorMsg,
+  });
+
+  if (supabase) {
+    try {
+      await supabase.from('courier_diagnostic_logs').insert([logEntry]);
+    } catch (err) {
+      console.warn('[Steadfast Diagnostic Log] Could not insert into courier_diagnostic_logs table:', err);
+    }
+  }
+}
+
 async function getSteadfastCredentials() {
   const providerColumnValue = 'Steadfast';
   console.log('[Steadfast Credentials] Querying courier_settings with provider =', providerColumnValue);
@@ -72,37 +99,45 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 2, ba
 export async function createSteadfastShipment(req: CourierShipmentRequest): Promise<CourierShipmentResponse> {
   const creds = await getSteadfastCredentials();
   const baseUrl = process.env.STEADFAST_BASE_URL || DEFAULT_BASE_URL;
-
-  const trackingNumber = `ST-${Math.floor(10000000 + Math.random() * 90000000)}`;
-  const consignmentId = `STF-${Math.floor(100000 + Math.random() * 900000)}`;
+  const endpoint = `${baseUrl}/create_order`;
 
   if (!creds.apiKey || !creds.secretKey) {
     const errMsg = 'Steadfast API Key or Secret Key missing in Supabase courier_settings and environment variables.';
-    console.warn(`[Steadfast Warning] ${errMsg}`);
+    console.error(`[Steadfast Error] ${errMsg}`);
+    await logDiagnostic('SHIPMENT_CREDENTIALS_ERROR', endpoint, { orderId: req.orderId }, { error: errMsg }, 400, errMsg);
     return {
-      success: true,
+      success: false,
       courierName: 'Steadfast Courier',
-      trackingNumber,
-      consignmentId,
-      status: 'In Review',
-      deliveryFee: req.district.toLowerCase() === 'dhaka' ? 60 : 120,
-      estimatedDeliveryDays: req.district.toLowerCase() === 'dhaka' ? '24 Hours' : '2-3 Days',
-      message: 'Shipment created locally (Steadfast credentials not configured). Generated tracking ID.',
-      isMockFallback: true,
+      trackingNumber: '',
+      consignmentId: '',
+      status: 'Failed',
+      deliveryFee: 0,
+      estimatedDeliveryDays: 'N/A',
+      message: errMsg,
+      errorDetails: errMsg,
+      isMockFallback: false,
     };
   }
 
-  try {
-    const payload = {
-      invoice: req.orderId,
-      recipient_name: req.recipientName,
-      recipient_phone: req.recipientPhone,
-      recipient_address: `${req.address}, ${req.thana || ''}, ${req.district}`.replace(/,\s*,/g, ','),
-      cod_amount: req.codAmount,
-      note: req.specialInstruction || `Gadgetghor Order ${req.orderId}`,
-    };
+  const payload = {
+    invoice: String(req.orderId),
+    recipient_name: req.recipientName,
+    recipient_phone: req.recipientPhone,
+    recipient_address: `${req.address}, ${req.thana || ''}, ${req.district}`.replace(/,\s*,/g, ','),
+    cod_amount: req.codAmount,
+    note: req.specialInstruction || `Gadgetghor Order ${req.orderId}`,
+  };
 
-    const res = await fetchWithRetry(`${baseUrl}/create_order`, {
+  const maskedHeaders = {
+    'Api-Key': creds.apiKey ? '***MASKED***' : '',
+    'Secret-Key': creds.secretKey ? '***MASKED***' : '',
+    'Content-Type': 'application/json',
+  };
+
+  console.log('[Steadfast Shipment Request] POST', endpoint, { payload, headers: maskedHeaders });
+
+  try {
+    const res = await fetchWithRetry(endpoint, {
       method: 'POST',
       headers: {
         'Api-Key': creds.apiKey,
@@ -113,49 +148,64 @@ export async function createSteadfastShipment(req: CourierShipmentRequest): Prom
     });
 
     const data = await res.json().catch(() => ({}));
+    console.log('[Steadfast Shipment Response]', { status: res.status, ok: res.ok, data });
 
-    if (res.ok && (data.status === 200 || data.status === 'success' || data.consignment)) {
-      const liveCid = data.consignment?.consignment_id || data.consignment?.tracking_code || consignmentId;
-      const liveTracking = data.consignment?.tracking_code || trackingNumber;
+    const isSuccess = res.ok && (data.status === 200 || data.status === 'success' || data.consignment);
+
+    if (isSuccess && (data.consignment || data.status === 200 || data.status === 'success')) {
+      const consignmentId = String(data.consignment?.consignment_id || data.consignment_id || data.consignment?.id || '');
+      const trackingNumber = data.consignment?.tracking_code || data.tracking_code || consignmentId;
+
+      await logDiagnostic('SHIPMENT_SUCCESS', endpoint, payload, data, res.status, null);
+
       return {
         success: true,
         courierName: 'Steadfast Courier',
-        trackingNumber: liveTracking,
-        consignmentId: String(liveCid),
+        trackingNumber: trackingNumber || consignmentId,
+        consignmentId: consignmentId || trackingNumber,
         status: data.consignment?.status || 'In Review',
-        deliveryFee: req.district.toLowerCase() === 'dhaka' ? 60 : 120,
-        estimatedDeliveryDays: req.district.toLowerCase() === 'dhaka' ? '24 Hours' : '2-3 Days',
-        message: 'Successfully dispatched order to Steadfast Courier API!',
+        deliveryFee: req.district.toLowerCase().includes('dhaka') ? 60 : 120,
+        estimatedDeliveryDays: req.district.toLowerCase().includes('dhaka') ? '24 Hours' : '2-3 Days',
+        message: `✅ Consignment successfully created in Steadfast! Tracking #: ${trackingNumber || consignmentId}`,
         rawResponse: data,
         isMockFallback: false,
       };
     } else {
-      const errMsg = data.message || data.errors?.[0] || `Steadfast API returned HTTP ${res.status}`;
+      const exactError = data.message || (data.errors ? JSON.stringify(data.errors) : null) || JSON.stringify(data) || `Steadfast API returned HTTP ${res.status}`;
+      console.error(`[Steadfast API Error] ${exactError}`);
+
+      await logDiagnostic('SHIPMENT_API_ERROR', endpoint, payload, data, res.status, exactError);
+
       return {
-        success: true,
+        success: false,
         courierName: 'Steadfast Courier',
-        trackingNumber,
-        consignmentId,
-        status: 'Pending Dispatch',
-        deliveryFee: req.district.toLowerCase() === 'dhaka' ? 60 : 120,
-        estimatedDeliveryDays: '2-3 Days',
-        message: `Steadfast API Warning: ${errMsg}. Local tracking ID generated for order processing.`,
-        errorDetails: errMsg,
-        isMockFallback: true,
+        trackingNumber: '',
+        consignmentId: '',
+        status: 'Failed',
+        deliveryFee: 0,
+        estimatedDeliveryDays: 'N/A',
+        message: `Steadfast API Error: ${exactError}`,
+        errorDetails: exactError,
+        isMockFallback: false,
       };
     }
   } catch (error: any) {
+    const errorMsg = error?.message || 'Network connection timeout to Steadfast API';
+    console.error('[Steadfast Shipment Exception]', error);
+
+    await logDiagnostic('SHIPMENT_EXCEPTION', endpoint, payload, { error: errorMsg }, 500, errorMsg);
+
     return {
-      success: true,
+      success: false,
       courierName: 'Steadfast Courier',
-      trackingNumber,
-      consignmentId,
-      status: 'Pending Dispatch',
-      deliveryFee: 120,
-      estimatedDeliveryDays: '2-3 Days',
-      message: `Network error connecting to Steadfast Courier (${error?.message || 'Timeout'}). Tracking code generated.`,
-      errorDetails: error?.message,
-      isMockFallback: true,
+      trackingNumber: '',
+      consignmentId: '',
+      status: 'Failed',
+      deliveryFee: 0,
+      estimatedDeliveryDays: 'N/A',
+      message: `Steadfast Connection Error: ${errorMsg}`,
+      errorDetails: errorMsg,
+      isMockFallback: false,
     };
   }
 }

@@ -32,7 +32,7 @@ export const INITIAL_BLACKLISTS: BlacklistItem[] = [
     id: 'blk-2',
     type: 'phone',
     value: '01855443322',
-    reason: 'Refused delivery at doorstep 3 times consecutively via Steadfast Courier',
+    reason: 'Refused delivery at doorstep 3 times consecutively via Courier',
     addedAt: '2026-07-20T14:45:00Z',
     addedBy: 'Fraud System',
     matchedCount: 3,

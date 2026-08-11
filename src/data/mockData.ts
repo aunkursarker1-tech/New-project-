@@ -752,8 +752,8 @@ export const INITIAL_ORDERS: Order[] = [
     status: 'Shipped',
     createdAt: '2026-08-02T10:15:00Z',
     estimatedDelivery: '2026-08-04',
-    courierTrackingNumber: 'STF-Dhaka-98214',
-    courierName: 'Steadfast Courier',
+    courierTrackingNumber: 'PTH-Dhaka-98214',
+    courierName: 'Pathao Courier',
   },
   {
     id: 'GDB-89310',
