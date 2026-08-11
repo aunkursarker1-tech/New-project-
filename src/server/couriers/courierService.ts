@@ -1,5 +1,5 @@
 import { CourierShipmentRequest, CourierShipmentResponse, CourierTrackingResponse, CourierHealthStatus, CourierPartner } from './types.js';
-import { createSteadfastShipment, getSteadfastTracking } from './steadfast.js';
+import { createSteadfastShipment, getSteadfastTracking, getSteadfastBaseUrl } from './steadfast.js';
 import { createPathaoShipment, getPathaoTracking } from './pathao.js';
 
 // In-memory shipment registry for tracking lookup by orderId or tracking code
@@ -70,7 +70,7 @@ export function getHealthStatus(): CourierHealthStatus[] {
       courier: 'Steadfast Courier',
       configured: Boolean(process.env.STEADFAST_API_KEY && process.env.STEADFAST_SECRET_KEY),
       active: true,
-      baseUrl: process.env.STEADFAST_BASE_URL || 'https://portal.packzy.com/api/v1',
+      baseUrl: getSteadfastBaseUrl(),
       message: process.env.STEADFAST_API_KEY ? 'Steadfast API Key loaded. Live dispatch ready.' : 'Configured via environment / database settings.',
     },
     {

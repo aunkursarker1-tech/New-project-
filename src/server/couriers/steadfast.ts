@@ -11,6 +11,9 @@ export function getSteadfastBaseUrl(): string {
   if (!url || url === 'undefined' || url === 'null') {
     url = DEFAULT_BASE_URL;
   }
+  if (url.includes('steadfast.com.bd')) {
+    url = url.replace(/steadfast\.com\.bd/g, 'packzy.com');
+  }
   return url;
 }
 
