@@ -84,8 +84,11 @@ courierRouter.post('/test-connection', async (req, res) => {
     if (provider === 'Pathao' && (!client_id || !client_secret)) {
       throw new Error('Pathao Client ID and Client Secret are required for authentication.');
     }
-    if (provider === 'Steadfast' && !client_id) {
-      throw new Error('Steadfast API Key / Client ID is required.');
+    if (provider === 'Steadfast') {
+      const hasEnvKey = Boolean(process.env.STEADFAST_API_KEY || process.env.STEADFAST_SECRET_KEY);
+      if (!client_id && !hasEnvKey) {
+        throw new Error('Steadfast API Key / Client ID is required.');
+      }
     }
     if (provider === 'RedX' && !client_id) {
       throw new Error('RedX API Token is required.');

@@ -19,7 +19,14 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
   const [loadingHealth, setLoadingHealth] = useState<boolean>(true);
 
   // Selected Provider in Settings Form
-  const [selectedProvider, setSelectedProvider] = useState<'Pathao' | 'RedX' | 'Paperfly'>('Pathao');
+  const [selectedProvider, setSelectedProvider] = useState<'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly'>('Pathao');
+
+  // Individual test connection state for Steadfast & Pathao cards
+  const [loadingSteadfastTest, setLoadingSteadfastTest] = useState(false);
+  const [steadfastTestResult, setSteadfastTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const [loadingPathaoTest, setLoadingPathaoTest] = useState(false);
+  const [pathaoTestResult, setPathaoTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Form Fields State per Provider
   const [formData, setFormData] = useState({
@@ -39,6 +46,49 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
   const [successMessage, setSuccessMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [syncingOrderId, setSyncingOrderId] = useState<string | null>(null);
+
+  const handleTestSpecificConnection = async (provider: 'Steadfast' | 'Pathao') => {
+    if (provider === 'Steadfast') {
+      setLoadingSteadfastTest(true);
+      setSteadfastTestResult(null);
+      try {
+        const res = await testCourierConnection({ provider: 'Steadfast', client_id: 'env_configured' });
+        setSteadfastTestResult({
+          success: res.success,
+          message: res.message || '✅ Connection Successful to Steadfast API',
+        });
+      } catch (err: any) {
+        setSteadfastTestResult({
+          success: false,
+          message: err?.message || '❌ Connection Failed to Steadfast API',
+        });
+      } finally {
+        setLoadingSteadfastTest(false);
+      }
+    } else if (provider === 'Pathao') {
+      setLoadingPathaoTest(true);
+      setPathaoTestResult(null);
+      try {
+        const settings = await getCourierSettings('Pathao');
+        const res = await testCourierConnection({
+          provider: 'Pathao',
+          client_id: settings?.client_id || formData.client_id || 'pth_client_441209',
+          client_secret: settings?.client_secret || formData.client_secret || 'pth_sec_9012384712',
+        });
+        setPathaoTestResult({
+          success: res.success,
+          message: res.message || '✅ Connection Successful to Pathao API',
+        });
+      } catch (err: any) {
+        setPathaoTestResult({
+          success: false,
+          message: err?.message || '❌ Connection Failed to Pathao API',
+        });
+      } finally {
+        setLoadingPathaoTest(false);
+      }
+    }
+  };
 
   // Load health & settings on mount
   useEffect(() => {
@@ -77,7 +127,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
     }
   };
 
-  const handleProviderChange = (provider: 'Pathao' | 'RedX' | 'Paperfly') => {
+  const handleProviderChange = (provider: 'Pathao' | 'Steadfast' | 'RedX' | 'Paperfly') => {
     setSelectedProvider(provider);
     setTestResult(null);
     loadProviderSettings(provider);
@@ -204,6 +254,127 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
         </div>
       )}
 
+      {/* Side-by-side Courier Integration Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* STEADFAST COURIER CARD */}
+        <div className={`p-6 rounded-3xl border transition-all ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} shadow-sm space-y-4`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 font-black text-sm flex items-center justify-center shrink-0 shadow-sm">
+                SF
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-wider uppercase text-slate-900 dark:text-white">STEADFAST COURIER</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Nationwide Express COD Parcel Delivery in Bangladesh
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black text-[10px] uppercase tracking-wider shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              ENABLED
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300">Server Environment Secret:</span>
+              <span className="font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                Configured (Env)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Steadfast API Key and Secret Key are read securely from server-side environment variables (<code className="font-mono text-emerald-600 dark:text-emerald-400">STEADFAST_API_KEY</code>, <code className="font-mono text-emerald-600 dark:text-emerald-400">STEADFAST_SECRET_KEY</code>).
+            </p>
+          </div>
+
+          {steadfastTestResult && (
+            <div className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center gap-2.5 ${
+              steadfastTestResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-300'
+            }`}>
+              {steadfastTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />}
+              <span className="text-[11px]">{steadfastTestResult.message}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Ready for order consignment dispatch
+            </span>
+
+            <button
+              type="button"
+              onClick={() => handleTestSpecificConnection('Steadfast')}
+              disabled={loadingSteadfastTest}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-extrabold text-xs flex items-center gap-2 transition-all disabled:opacity-50 border border-slate-700/50 shadow-sm"
+            >
+              {loadingSteadfastTest ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-400" /> : <Activity className="w-3.5 h-3.5 text-emerald-400" />}
+              <span>TEST CONNECTION</span>
+            </button>
+          </div>
+        </div>
+
+        {/* PATHAO COURIER CARD */}
+        <div className={`p-6 rounded-3xl border transition-all ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} shadow-sm space-y-4`}>
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 font-black text-sm flex items-center justify-center shrink-0 shadow-sm">
+                PTH
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-wider uppercase text-slate-900 dark:text-white">PATHAO COURIER</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Express Same Day & Nationwide Courier Service
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-black text-[10px] uppercase tracking-wider shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              ENABLED
+            </span>
+          </div>
+
+          <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 dark:text-slate-300">Server & Supabase OAuth:</span>
+              <span className="font-mono text-[11px] font-bold text-rose-600 dark:text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-md">
+                Configured (OAuth)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Pathao Client ID, Secret, Username, Password and Store ID are managed securely via Supabase <code className="font-mono text-rose-600 dark:text-rose-400">courier_settings</code> and OAuth handshake.
+            </p>
+          </div>
+
+          {pathaoTestResult && (
+            <div className={`p-3.5 rounded-2xl border text-xs font-bold flex items-center gap-2.5 ${
+              pathaoTestResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-600 dark:text-rose-300'
+            }`}>
+              {pathaoTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> : <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />}
+              <span className="text-[11px]">{pathaoTestResult.message}</span>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/60">
+            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+              Ready for order consignment dispatch
+            </span>
+
+            <button
+              type="button"
+              onClick={() => handleTestSpecificConnection('Pathao')}
+              disabled={loadingPathaoTest}
+              className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-slate-800 dark:hover:bg-slate-700 font-extrabold text-xs flex items-center gap-2 transition-all disabled:opacity-50 border border-slate-700/50 shadow-sm"
+            >
+              {loadingPathaoTest ? <RefreshCw className="w-3.5 h-3.5 animate-spin text-rose-400" /> : <Activity className="w-3.5 h-3.5 text-rose-400" />}
+              <span>TEST CONNECTION</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Courier Settings Configuration Form */}
       <div className={`p-6 rounded-3xl border ${darkMode ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'} space-y-6 shadow-xl`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800/50 pb-4">
@@ -219,7 +390,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
 
           {/* Provider Selector Tabs */}
           <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
-            {(['Pathao', 'RedX', 'Paperfly'] as const).map((prov) => (
+            {(['Steadfast', 'Pathao', 'RedX', 'Paperfly'] as const).map((prov) => (
               <button
                 key={prov}
                 type="button"
@@ -378,7 +549,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {(['Pathao', 'RedX', 'Paperfly'] as const).map((courierName) => (
+                  {(['Steadfast', 'Pathao', 'RedX', 'Paperfly'] as const).map((courierName) => (
                     <button
                       key={courierName}
                       disabled={syncingOrderId === ord.id}

@@ -42,7 +42,7 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.couriers)) {
-        return data.couriers.filter((c: any) => !c.courier?.includes('Steadfast'));
+        return data.couriers;
       }
     }
   } catch (err) {
@@ -50,6 +50,7 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
   }
 
   return [
+    { courier: 'Steadfast Courier', configured: true, active: true, baseUrl: 'https://portal.steadfast.com.bd/api/v1', message: 'Ready via Steadfast Merchant Portal' },
     { courier: 'Pathao Courier', configured: true, active: true, baseUrl: 'https://api-hermes.pathao.com', message: 'Ready via Pathao Hermes API' },
     { courier: 'RedX', configured: true, active: true, baseUrl: 'https://openapi.redx.com.bd/v1.0.0', message: 'Ready via RedX OpenAPI' },
     { courier: 'Paperfly', configured: true, active: true, baseUrl: 'https://paperflybd.com/api/v1', message: 'Ready via Paperfly API' },
