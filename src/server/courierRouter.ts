@@ -407,6 +407,35 @@ courierRouter.post('/test-cod-resolution', (req, res) => {
   }
 });
 
+// 8.6 Production Order Diagnostic Endpoint
+courierRouter.post('/order-diagnostic', (req, res) => {
+  try {
+    const { order } = req.body;
+    if (!order) {
+      return res.status(400).json({ success: false, message: 'Order object required' });
+    }
+    const dbTotal = order.total ?? 0;
+    const dbCodAmount = order.codAmount ?? (order.paymentMethod === 'COD' ? dbTotal : 0);
+    const apiTotal = order.total ?? 0;
+    const apiCodAmount = order.codAmount ?? (order.paymentMethod === 'COD' ? apiTotal : 0);
+
+    res.json({
+      success: true,
+      diagnostic: {
+        orderId: order.id,
+        paymentMethod: order.paymentMethod,
+        databaseTotal: dbTotal,
+        databaseCodAmount: dbCodAmount,
+        apiResponseTotal: apiTotal,
+        apiResponseCodAmount: apiCodAmount,
+        environment: process.env.NODE_ENV || 'development'
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message });
+  }
+});
+
 // 9. Track Shipment
 courierRouter.get('/track/:id', async (req, res) => {
   try {
