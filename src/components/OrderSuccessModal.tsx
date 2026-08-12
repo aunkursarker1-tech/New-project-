@@ -106,8 +106,10 @@ export const OrderSuccessModal: React.FC<OrderSuccessModalProps> = ({
           </div>
 
           <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-sm font-black">
-            <span>Total Paid Amount:</span>
-            <span className="text-emerald-400 text-base">{formatPrice(order.total)}</span>
+            <span>{order.paymentMethod === 'COD' ? 'Cash on Delivery (COD) Amount:' : 'Total Paid Amount:'}</span>
+            <span className="text-emerald-400 text-base">
+              {formatPrice(order.paymentMethod === 'COD' ? (order.codAmount ?? order.total) : order.total)}
+            </span>
           </div>
         </div>
 

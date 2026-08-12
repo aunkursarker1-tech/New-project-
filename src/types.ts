@@ -120,6 +120,7 @@ export interface Order {
   discountAmount: number;
   couponCodeApplied?: string;
   total: number;
+  codAmount?: number;
   paymentMethod: PaymentMethod;
   paymentStatus: 'Paid' | 'Pending';
   bkashTrxId?: string;

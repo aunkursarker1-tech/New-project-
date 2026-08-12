@@ -196,8 +196,12 @@ export const OrderTrackingModal: React.FC<OrderTrackingModalProps> = ({
                     <span className="font-mono font-extrabold text-amber-400">{foundOrder.courierTrackingNumber || 'Pending'}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block text-[10px]">Total Amount:</span>
-                    <strong className="text-emerald-400">{formatPrice(foundOrder.total)}</strong>
+                    <span className="text-slate-400 block text-[10px]">
+                      {foundOrder.paymentMethod === 'COD' ? 'COD Amount To Collect:' : 'Total Amount:'}
+                    </span>
+                    <strong className="text-emerald-400">
+                      {formatPrice(foundOrder.paymentMethod === 'COD' ? (foundOrder.codAmount ?? foundOrder.total) : foundOrder.total)}
+                    </strong>
                   </div>
                 </div>
 

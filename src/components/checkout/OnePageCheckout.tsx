@@ -363,6 +363,7 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
       discountAmount,
       couponCodeApplied: activeCoupon ? activeCoupon.code : undefined,
       total: grandTotal,
+      codAmount: paymentMethod === 'COD' ? grandTotal : 0,
       paymentMethod,
       paymentStatus: paymentMethod === 'COD' ? 'Pending' : 'Paid',
       bkashNumber: paymentMethod === 'bKash' ? bkashNumber || phone : undefined,
