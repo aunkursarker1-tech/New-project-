@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient, cleanString } from '../supabaseServer.js';
 import { getStoredCourierSettings } from '../courierSettingsStore.js';
 
-const DEFAULT_BASE_URL = 'https://api.pathao.com';
+const DEFAULT_BASE_URL = 'https://api-hermes.pathao.com';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -11,7 +11,7 @@ export function getPathaoBaseUrl(): string {
   let url = (process.env.PATHAO_BASE_URL || DEFAULT_BASE_URL).trim();
   url = url.replace(/^["']|["']$/g, '');
   url = url.replace(/\/+$/, '');
-  if (!url || url === 'undefined' || url === 'null') {
+  if (!url || url === 'undefined' || url === 'null' || url === 'https://api.pathao.com') {
     url = DEFAULT_BASE_URL;
   }
   // Strip trailing /aladdin/api/v1 if included in PATHAO_BASE_URL env var
@@ -68,22 +68,68 @@ async function logDiagnostic(
   }
 }
 
-export async function getPathaoCredentials() {
+export interface PathaoCredentialAudit {
+  provider: 'Pathao';
+  row_found: boolean;
+  client_id_present: boolean;
+  client_secret_present: boolean;
+  username_present: boolean;
+  password_present: boolean;
+  store_id_present: boolean;
+  sandbox: boolean;
+  updated_at: string | null;
+  credential_source: string;
+  supabase_connected: boolean;
+  missing_fields: string[];
+  whitespace_detected: {
+    client_id: boolean;
+    client_secret: boolean;
+    username: boolean;
+    password: boolean;
+    any: boolean;
+  };
+}
+
+export interface PathaoCredentials {
+  provider: 'Pathao';
+  source: string;
+  client_id: string;
+  client_secret: string;
+  username: string;
+  password: string;
+  store_id: string;
+  sandbox: boolean;
+  client_id_length: number;
+  hasWhitespace: boolean;
+}
+
+export async function getPathaoCredentialsDetails(): Promise<{
+  creds: PathaoCredentials | null;
+  audit: PathaoCredentialAudit;
+}> {
   const providerColumnValue = 'Pathao';
-  console.log('[Pathao Credentials] Querying courier_settings with provider =', providerColumnValue);
 
-  let rawClientId = process.env.PATHAO_CLIENT_ID || '';
-  let rawClientSecret = process.env.PATHAO_CLIENT_SECRET || '';
-  let rawUsername = process.env.PATHAO_USERNAME || '';
-  let rawPassword = process.env.PATHAO_PASSWORD || '';
-  let store_id = (process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01').trim();
-  let sandbox = process.env.PATHAO_SANDBOX !== 'false';
-  let credentialSource = 'Environment Variables';
+  let rawClientId = '';
+  let rawClientSecret = '';
+  let rawUsername = '';
+  let rawPassword = '';
+  let store_id = 'pth_store_dhanmondi_01';
+  let sandbox = true;
 
+  let row_found = false;
+  let updated_at: string | null = null;
+  let supabase_connected = false;
+
+  let loadedFromSupabase = false;
+  let loadedFromStore = false;
+  let loadedFromEnv = false;
+
+  // 1. Primary check: Supabase courier_settings table
   const supabase = getSupabaseServerClient();
   if (supabase) {
+    supabase_connected = true;
     try {
-      // 1. Clean duplicate non-canonical rows if any exist
+      // Clean non-canonical provider rows
       const { data: ilikeRows } = await supabase
         .from('courier_settings')
         .select('id, provider')
@@ -100,7 +146,7 @@ export async function getPathaoCredentials() {
         }
       }
 
-      // 2. Fetch canonical Pathao row
+      // Query canonical Pathao row
       const { data, error } = await supabase
         .from('courier_settings')
         .select('*')
@@ -108,32 +154,29 @@ export async function getPathaoCredentials() {
         .order('updated_at', { ascending: false });
 
       if (error) {
-        console.warn('[Pathao Credentials Warning] Supabase query returned error, falling back to env:', error.message);
+        console.warn('[Pathao Credentials Warning] Supabase query returned error:', error.message);
       } else if (data && data.length > 0) {
-        if (data.length > 1) {
-          console.warn(`[Pathao Credentials Warning] Multiple (${data.length}) rows returned in courier_settings for provider = Pathao. Using the most recently updated row.`);
-        } else {
-          console.log('[Pathao Credentials] Verified query returned exactly one row from courier_settings.');
-        }
-
+        row_found = true;
         const row = data[0];
-        if (row.client_id !== undefined && row.client_id !== null && row.client_id !== '') {
+        updated_at = row.updated_at || null;
+
+        if (row.client_id !== undefined && row.client_id !== null && String(row.client_id).trim() !== '') {
           rawClientId = String(row.client_id);
-          credentialSource = 'Supabase (courier_settings)';
+          loadedFromSupabase = true;
         }
-        if (row.client_secret !== undefined && row.client_secret !== null && row.client_secret !== '') {
+        if (row.client_secret !== undefined && row.client_secret !== null && String(row.client_secret).trim() !== '') {
           rawClientSecret = String(row.client_secret);
-          credentialSource = 'Supabase (courier_settings)';
+          loadedFromSupabase = true;
         }
-        if (row.username !== undefined && row.username !== null && row.username !== '') {
+        if (row.username !== undefined && row.username !== null && String(row.username).trim() !== '') {
           rawUsername = String(row.username);
-          credentialSource = 'Supabase (courier_settings)';
+          loadedFromSupabase = true;
         }
-        if (row.password !== undefined && row.password !== null && row.password !== '') {
+        if (row.password !== undefined && row.password !== null && String(row.password).trim() !== '') {
           rawPassword = String(row.password);
-          credentialSource = 'Supabase (courier_settings)';
+          loadedFromSupabase = true;
         }
-        if (row.store_id) {
+        if (row.store_id !== undefined && row.store_id !== null && String(row.store_id).trim() !== '') {
           store_id = String(row.store_id).trim();
         }
         if (row.sandbox !== undefined && row.sandbox !== null) {
@@ -149,26 +192,26 @@ export async function getPathaoCredentials() {
     console.warn('[Pathao Credentials] Supabase client is not initialized.');
   }
 
-  // Check in-memory store (saved via Admin Panel)
+  // 2. Secondary check: In-memory store (saved via Admin Panel in this Node instance)
   const memSettings = getStoredCourierSettings('Pathao');
   if (memSettings) {
-    if (memSettings.client_id) {
+    if (memSettings.client_id && cleanString(memSettings.client_id) !== '') {
       rawClientId = memSettings.client_id;
-      credentialSource = 'Admin Panel Store';
+      loadedFromStore = true;
     }
-    if (memSettings.client_secret) {
+    if (memSettings.client_secret && cleanString(memSettings.client_secret) !== '') {
       rawClientSecret = memSettings.client_secret;
-      credentialSource = 'Admin Panel Store';
+      loadedFromStore = true;
     }
-    if (memSettings.username) {
+    if (memSettings.username && cleanString(memSettings.username) !== '') {
       rawUsername = memSettings.username;
-      credentialSource = 'Admin Panel Store';
+      loadedFromStore = true;
     }
-    if (memSettings.password) {
+    if (memSettings.password && cleanString(memSettings.password) !== '') {
       rawPassword = memSettings.password;
-      credentialSource = 'Admin Panel Store';
+      loadedFromStore = true;
     }
-    if (memSettings.store_id) {
+    if (memSettings.store_id && cleanString(memSettings.store_id) !== '') {
       store_id = memSettings.store_id;
     }
     if (memSettings.sandbox !== undefined) {
@@ -176,7 +219,40 @@ export async function getPathaoCredentials() {
     }
   }
 
-  // Check for leading/trailing whitespace or hidden control characters before cleaning
+  // 3. Fallback: Environment Variables
+  if (!rawClientId && process.env.PATHAO_CLIENT_ID) {
+    rawClientId = process.env.PATHAO_CLIENT_ID;
+    loadedFromEnv = true;
+  }
+  if (!rawClientSecret && process.env.PATHAO_CLIENT_SECRET) {
+    rawClientSecret = process.env.PATHAO_CLIENT_SECRET;
+    loadedFromEnv = true;
+  }
+  if (!rawUsername && process.env.PATHAO_USERNAME) {
+    rawUsername = process.env.PATHAO_USERNAME;
+    loadedFromEnv = true;
+  }
+  if (!rawPassword && process.env.PATHAO_PASSWORD) {
+    rawPassword = process.env.PATHAO_PASSWORD;
+    loadedFromEnv = true;
+  }
+  if ((!store_id || store_id === 'pth_store_dhanmondi_01') && process.env.PATHAO_STORE_ID) {
+    store_id = process.env.PATHAO_STORE_ID;
+  }
+  if (process.env.PATHAO_SANDBOX !== undefined) {
+    sandbox = process.env.PATHAO_SANDBOX !== 'false';
+  }
+
+  // Determine credential source description
+  let credentialSource = 'Neither';
+  if (loadedFromSupabase) {
+    credentialSource = 'Supabase (courier_settings)';
+  } else if (loadedFromStore) {
+    credentialSource = 'Admin Panel Store';
+  } else if (loadedFromEnv) {
+    credentialSource = 'Environment Variables';
+  }
+
   const clientIdHasWhitespace = rawClientId !== cleanString(rawClientId);
   const clientSecretHasWhitespace = rawClientSecret !== cleanString(rawClientSecret);
   const usernameHasWhitespace = rawUsername !== cleanString(rawUsername);
@@ -189,17 +265,31 @@ export async function getPathaoCredentials() {
   const password = cleanString(rawPassword);
   store_id = cleanString(store_id);
 
-  // Safe logging with masked credentials (NEVER log secret or password)
-  console.log('[Pathao Credential Audit]', {
+  const client_id_present = Boolean(client_id);
+  const client_secret_present = Boolean(client_secret);
+  const username_present = Boolean(username);
+  const password_present = Boolean(password);
+  const store_id_present = Boolean(store_id);
+
+  const missing_fields: string[] = [];
+  if (!client_id_present) missing_fields.push('client_id');
+  if (!client_secret_present) missing_fields.push('client_secret');
+  if (!username_present) missing_fields.push('username');
+  if (!password_present) missing_fields.push('password');
+
+  const audit: PathaoCredentialAudit = {
     provider: 'Pathao',
-    source: credentialSource,
-    has_client_id: Boolean(client_id),
-    client_id_length: client_id.length,
-    has_client_secret: Boolean(client_secret),
-    has_username: Boolean(username),
-    has_password: Boolean(password),
-    store_id,
+    row_found,
+    client_id_present,
+    client_secret_present,
+    username_present,
+    password_present,
+    store_id_present,
     sandbox,
+    updated_at,
+    credential_source: credentialSource,
+    supabase_connected,
+    missing_fields,
     whitespace_detected: {
       client_id: clientIdHasWhitespace,
       client_secret: clientSecretHasWhitespace,
@@ -207,14 +297,15 @@ export async function getPathaoCredentials() {
       password: passwordHasWhitespace,
       any: hasWhitespace,
     },
-  });
+  };
 
-  if (!client_id || !client_secret || !username || !password) {
-    console.error(`[Pathao Credentials Error] Missing required credentials in courier_settings or env variables! (client_id: ${Boolean(client_id)}, client_secret: ${Boolean(client_secret)}, username: ${Boolean(username)}, password: ${Boolean(password)})`);
-    return null;
+  console.log('[Pathao Credential Audit Log]', audit);
+
+  if (missing_fields.length > 0) {
+    return { creds: null, audit };
   }
 
-  return {
+  const creds: PathaoCredentials = {
     provider: 'Pathao',
     source: credentialSource,
     client_id,
@@ -226,6 +317,13 @@ export async function getPathaoCredentials() {
     client_id_length: client_id.length,
     hasWhitespace,
   };
+
+  return { creds, audit };
+}
+
+export async function getPathaoCredentials(): Promise<PathaoCredentials | null> {
+  const { creds } = await getPathaoCredentialsDetails();
+  return creds;
 }
 
 export async function getPathaoAccessTokenResult(): Promise<{
@@ -233,21 +331,24 @@ export async function getPathaoAccessTokenResult(): Promise<{
   token: string | null;
   message: string;
   statusCode?: number;
+  audit?: PathaoCredentialAudit;
   rawResponse?: any;
 }> {
-  const creds = await getPathaoCredentials();
+  const { creds, audit } = await getPathaoCredentialsDetails();
   const baseUrl = getPathaoBaseUrl();
   const tokenEndpoint = `${baseUrl}/aladdin/api/v1/issue-token`;
 
   if (!creds) {
-    const missingCredsMsg = 'Pathao OAuth error: Missing required credentials in courier_settings or environment variables (client_id, client_secret, username, password).';
+    const missingStr = audit.missing_fields.join(', ');
+    const missingCredsMsg = `Pathao OAuth error: Missing required credentials in ${audit.credential_source} (${missingStr}).`;
     console.error(`[Pathao OAuth] ${missingCredsMsg}`);
-    await logDiagnostic('OAUTH_STOPPED', tokenEndpoint, null, null, 400, missingCredsMsg);
+    await logDiagnostic('OAUTH_STOPPED', tokenEndpoint, null, { audit }, 400, missingCredsMsg);
     return {
       success: false,
       token: null,
       message: missingCredsMsg,
       statusCode: 400,
+      audit,
     };
   }
 
@@ -543,54 +644,16 @@ export async function getPathaoTracking(trackingCode: string): Promise<CourierTr
 export async function testPathaoConnection(): Promise<{
   success: boolean;
   message: string;
-  baseUrl?: string;
-  tokenEndpoint?: string;
-  httpStatus?: number;
-  audit?: {
-    provider: string;
-    source: string;
-    has_client_id: boolean;
-    client_id_length: number;
-    has_client_secret: boolean;
-    has_username: boolean;
-    has_password: boolean;
-    store_id: string;
-    sandbox: boolean;
-    whitespace_detected: {
-      client_id: boolean;
-      client_secret: boolean;
-      username: boolean;
-      password: boolean;
-      any: boolean;
-    };
-  } | null;
+  baseUrl: string;
+  tokenEndpoint: string;
+  httpStatus: number;
+  audit: PathaoCredentialAudit;
   rawResponse?: any;
 }> {
   const baseUrl = getPathaoBaseUrl();
   const tokenEndpoint = `${baseUrl}/aladdin/api/v1/issue-token`;
-  const creds = await getPathaoCredentials();
+  const { audit } = await getPathaoCredentialsDetails();
   const result = await getPathaoAccessTokenResult();
-
-  const auditData = creds
-    ? {
-        provider: 'Pathao',
-        source: creds.source,
-        has_client_id: Boolean(creds.client_id),
-        client_id_length: creds.client_id_length,
-        has_client_secret: Boolean(creds.client_secret),
-        has_username: Boolean(creds.username),
-        has_password: Boolean(creds.password),
-        store_id: creds.store_id,
-        sandbox: creds.sandbox,
-        whitespace_detected: {
-          client_id: false, // already computed during audit log
-          client_secret: false,
-          username: false,
-          password: false,
-          any: creds.hasWhitespace,
-        },
-      }
-    : null;
 
   if (result.success) {
     return {
@@ -599,7 +662,7 @@ export async function testPathaoConnection(): Promise<{
       baseUrl,
       tokenEndpoint,
       httpStatus: result.statusCode || 200,
-      audit: auditData,
+      audit: result.audit || audit,
       rawResponse: result.rawResponse,
     };
   } else {
@@ -609,7 +672,7 @@ export async function testPathaoConnection(): Promise<{
       baseUrl,
       tokenEndpoint,
       httpStatus: result.statusCode || 400,
-      audit: auditData,
+      audit: result.audit || audit,
       rawResponse: result.rawResponse,
     };
   }

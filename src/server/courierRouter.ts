@@ -248,7 +248,7 @@ courierRouter.post('/test-connection', async (req, res) => {
       });
     } else if (provider === 'Pathao') {
       const result = await testPathaoConnection();
-      return res.status(result.success ? 200 : 400).json({
+      return res.status(result.success ? 200 : (result.httpStatus || 400)).json({
         success: result.success,
         message: result.message,
         provider: 'Pathao',
@@ -257,6 +257,8 @@ courierRouter.post('/test-connection', async (req, res) => {
         baseUrl: result.baseUrl,
         tokenEndpoint: result.tokenEndpoint,
         httpStatus: result.httpStatus,
+        audit: result.audit,
+        rawResponse: result.rawResponse,
       });
     } else {
       return res.status(400).json({
