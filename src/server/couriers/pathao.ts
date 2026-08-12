@@ -3,10 +3,26 @@ import { createClient } from '@supabase/supabase-js';
 
 const DEFAULT_BASE_URL = 'https://api.pathao.com';
 
-// Server-side Supabase client using strictly server environment variables (no VITE_ variables)
-const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const supabase = (supabaseUrl && supabaseKey) ? createClient(supabaseUrl, supabaseKey) : null;
+function cleanString(str: string): string {
+  return (str || '')
+    .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
+function getSupabaseClient() {
+  let url = cleanString(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '');
+  let key = cleanString(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '');
+  if (!url || !key || !url.startsWith('http')) {
+    return null;
+  }
+  try {
+    return createClient(url, key);
+  } catch (err) {
+    console.warn('[Pathao Supabase Client Error] Failed to initialize Supabase client:', err);
+    return null;
+  }
+}
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -64,6 +80,7 @@ async function logDiagnostic(
     error: errorMsg,
   });
 
+  const supabase = getSupabaseClient();
   if (supabase) {
     try {
       await supabase.from('courier_diagnostic_logs').insert([logEntry]);
@@ -77,13 +94,14 @@ export async function getPathaoCredentials() {
   const providerColumnValue = 'Pathao';
   console.log('[Pathao Credentials] Querying courier_settings with provider =', providerColumnValue);
 
-  let client_id = process.env.PATHAO_CLIENT_ID || '';
-  let client_secret = process.env.PATHAO_CLIENT_SECRET || '';
-  let username = process.env.PATHAO_USERNAME || '';
-  let password = process.env.PATHAO_PASSWORD || '';
-  let store_id = process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01';
+  let rawClientId = process.env.PATHAO_CLIENT_ID || '';
+  let rawClientSecret = process.env.PATHAO_CLIENT_SECRET || '';
+  let rawUsername = process.env.PATHAO_USERNAME || '';
+  let rawPassword = process.env.PATHAO_PASSWORD || '';
+  let store_id = (process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01').trim();
   let sandbox = process.env.PATHAO_SANDBOX !== 'false';
-
+  let credentialSource = 'Environment Variables';
+  const supabase = getSupabaseClient();
   if (supabase) {
     try {
       const { data, error } = await supabase
@@ -102,11 +120,25 @@ export async function getPathaoCredentials() {
         }
 
         const row = data[0];
-        client_id = row.client_id || client_id;
-        client_secret = row.client_secret || client_secret;
-        username = row.username || username;
-        password = row.password || password;
-        store_id = row.store_id || store_id;
+        if (row.client_id !== undefined && row.client_id !== null && row.client_id !== '') {
+          rawClientId = String(row.client_id);
+          credentialSource = 'Supabase (courier_settings)';
+        }
+        if (row.client_secret !== undefined && row.client_secret !== null && row.client_secret !== '') {
+          rawClientSecret = String(row.client_secret);
+          credentialSource = 'Supabase (courier_settings)';
+        }
+        if (row.username !== undefined && row.username !== null && row.username !== '') {
+          rawUsername = String(row.username);
+          credentialSource = 'Supabase (courier_settings)';
+        }
+        if (row.password !== undefined && row.password !== null && row.password !== '') {
+          rawPassword = String(row.password);
+          credentialSource = 'Supabase (courier_settings)';
+        }
+        if (row.store_id) {
+          store_id = String(row.store_id).trim();
+        }
         if (row.sandbox !== undefined && row.sandbox !== null) {
           sandbox = Boolean(row.sandbox);
         }
@@ -120,14 +152,37 @@ export async function getPathaoCredentials() {
     console.warn('[Pathao Credentials] Supabase client is not initialized. Falling back to server environment variables.');
   }
 
-  // Safe logging with masked credentials
-  console.log('[Pathao Credential Check]', {
+  // Check for leading/trailing whitespace or hidden control characters before cleaning
+  const clientIdHasWhitespace = rawClientId !== cleanString(rawClientId);
+  const clientSecretHasWhitespace = rawClientSecret !== cleanString(rawClientSecret);
+  const usernameHasWhitespace = rawUsername !== cleanString(rawUsername);
+  const passwordHasWhitespace = rawPassword !== cleanString(rawPassword);
+  const hasWhitespace = clientIdHasWhitespace || clientSecretHasWhitespace || usernameHasWhitespace || passwordHasWhitespace;
+
+  const client_id = cleanString(rawClientId);
+  const client_secret = cleanString(rawClientSecret);
+  const username = cleanString(rawUsername);
+  const password = cleanString(rawPassword);
+  store_id = cleanString(store_id);
+
+  // Safe logging with masked credentials (NEVER log secret or password)
+  console.log('[Pathao Credential Audit]', {
+    provider: 'Pathao',
+    source: credentialSource,
     has_client_id: Boolean(client_id),
+    client_id_length: client_id.length,
     has_client_secret: Boolean(client_secret),
     has_username: Boolean(username),
     has_password: Boolean(password),
     store_id,
     sandbox,
+    whitespace_detected: {
+      client_id: clientIdHasWhitespace,
+      client_secret: clientSecretHasWhitespace,
+      username: usernameHasWhitespace,
+      password: passwordHasWhitespace,
+      any: hasWhitespace,
+    },
   });
 
   if (!client_id || !client_secret || !username || !password) {
@@ -136,12 +191,16 @@ export async function getPathaoCredentials() {
   }
 
   return {
+    provider: 'Pathao',
+    source: credentialSource,
     client_id,
     client_secret,
     username,
     password,
     store_id,
     sandbox,
+    client_id_length: client_id.length,
+    hasWhitespace,
   };
 }
 
@@ -463,10 +522,51 @@ export async function testPathaoConnection(): Promise<{
   baseUrl?: string;
   tokenEndpoint?: string;
   httpStatus?: number;
+  audit?: {
+    provider: string;
+    source: string;
+    has_client_id: boolean;
+    client_id_length: number;
+    has_client_secret: boolean;
+    has_username: boolean;
+    has_password: boolean;
+    store_id: string;
+    sandbox: boolean;
+    whitespace_detected: {
+      client_id: boolean;
+      client_secret: boolean;
+      username: boolean;
+      password: boolean;
+      any: boolean;
+    };
+  } | null;
+  rawResponse?: any;
 }> {
   const baseUrl = getPathaoBaseUrl();
   const tokenEndpoint = `${baseUrl}/aladdin/api/v1/issue-token`;
+  const creds = await getPathaoCredentials();
   const result = await getPathaoAccessTokenResult();
+
+  const auditData = creds
+    ? {
+        provider: 'Pathao',
+        source: creds.source,
+        has_client_id: Boolean(creds.client_id),
+        client_id_length: creds.client_id_length,
+        has_client_secret: Boolean(creds.client_secret),
+        has_username: Boolean(creds.username),
+        has_password: Boolean(creds.password),
+        store_id: creds.store_id,
+        sandbox: creds.sandbox,
+        whitespace_detected: {
+          client_id: false, // already computed during audit log
+          client_secret: false,
+          username: false,
+          password: false,
+          any: creds.hasWhitespace,
+        },
+      }
+    : null;
 
   if (result.success) {
     return {
@@ -475,6 +575,8 @@ export async function testPathaoConnection(): Promise<{
       baseUrl,
       tokenEndpoint,
       httpStatus: result.statusCode || 200,
+      audit: auditData,
+      rawResponse: result.rawResponse,
     };
   } else {
     return {
@@ -483,6 +585,8 @@ export async function testPathaoConnection(): Promise<{
       baseUrl,
       tokenEndpoint,
       httpStatus: result.statusCode || 400,
+      audit: auditData,
+      rawResponse: result.rawResponse,
     };
   }
 }
