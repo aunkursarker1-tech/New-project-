@@ -464,19 +464,180 @@ export async function getPathaoAccessToken(): Promise<string | null> {
   return result.token;
 }
 
+export function resolveCodAmount(req: any): {
+  isValid: boolean;
+  finalAmountToCollect: number;
+  originalCodAmountValue: any;
+  originalCodAmountType: string;
+  originalCodAmountPresent: boolean;
+  finalAmountType: string;
+  sourceField: string;
+  isCodOrder: boolean;
+  paymentMethod: string;
+  errorReason?: string;
+} {
+  let paymentMethod = 'COD';
+  if (req?.paymentMethod) paymentMethod = String(req.paymentMethod);
+  else if (req?.order?.paymentMethod) paymentMethod = String(req.order.paymentMethod);
+  else if (req?.payment_method) paymentMethod = String(req.payment_method);
+
+  const normalizedPayment = paymentMethod.trim().toUpperCase();
+  const isPrepaid = normalizedPayment === 'BKASH' || normalizedPayment === 'NAGAD' || normalizedPayment === 'CARD' || normalizedPayment === 'PAID';
+  const isCodOrder = !isPrepaid;
+
+  // Candidate fields in priority order
+  const candidates: { field: string; value: any }[] = [
+    { field: 'codAmount', value: req?.codAmount },
+    { field: 'amount_to_collect', value: req?.amount_to_collect },
+    { field: 'cod_amount', value: req?.cod_amount },
+    { field: 'amount', value: req?.amount },
+    { field: 'total', value: req?.total },
+    { field: 'order.total', value: req?.order?.total },
+    { field: 'order.codAmount', value: req?.order?.codAmount },
+    { field: 'order.amount_to_collect', value: req?.order?.amount_to_collect },
+    { field: 'order.cod_amount', value: req?.order?.cod_amount },
+  ];
+
+  let foundValue: any = undefined;
+  let sourceField = 'none';
+  let originalCodAmountPresent = false;
+
+  for (const cand of candidates) {
+    if (cand.value !== undefined && cand.value !== null && cand.value !== '') {
+      originalCodAmountPresent = true;
+      foundValue = cand.value;
+      sourceField = cand.field;
+      break;
+    }
+  }
+
+  const originalCodAmountValue = foundValue;
+  const originalCodAmountType = typeof foundValue;
+
+  let parsedNum: number | null = null;
+
+  if (typeof foundValue === 'number') {
+    if (!isNaN(foundValue)) {
+      parsedNum = foundValue;
+    }
+  } else if (typeof foundValue === 'string') {
+    const cleanStr = foundValue.replace(/[৳\$,\s]/gi, '').replace(/BDT|Tk/gi, '').trim();
+    if (cleanStr !== '') {
+      const n = Number(cleanStr);
+      if (!isNaN(n)) {
+        parsedNum = n;
+      }
+    }
+  }
+
+  // Fallback calculation for COD orders if parsedNum is null or 0
+  if ((parsedNum === null || parsedNum === 0) && isCodOrder) {
+    const subtotal = Number(req?.subtotal ?? req?.order?.subtotal) || 0;
+    const shippingFee = Number(req?.shippingFee ?? req?.deliveryFee ?? req?.shipping_fee ?? req?.delivery_fee ?? req?.order?.shippingFee ?? req?.order?.shipping_fee ?? req?.order?.delivery_fee) || 0;
+    const discount = Number(req?.discountAmount ?? req?.discount ?? req?.coupon_discount ?? req?.couponDiscount ?? req?.order?.discountAmount ?? req?.order?.discount ?? req?.order?.coupon_discount) || 0;
+    const tax = Number(req?.tax ?? req?.order?.tax) || 0;
+
+    if (subtotal > 0) {
+      const calculatedTotal = Math.max(0, subtotal + shippingFee + tax - discount);
+      if (calculatedTotal > 0) {
+        parsedNum = calculatedTotal;
+        sourceField = `calculated (subtotal:${subtotal} + shipping:${shippingFee} + tax:${tax} - discount:${discount})`;
+      }
+    }
+  }
+
+  if (isPrepaid) {
+    return {
+      isValid: true,
+      finalAmountToCollect: 0,
+      originalCodAmountValue,
+      originalCodAmountType,
+      originalCodAmountPresent,
+      finalAmountType: 'number',
+      sourceField: sourceField !== 'none' ? sourceField : 'prepaid_order_default_0',
+      isCodOrder: false,
+      paymentMethod,
+    };
+  }
+
+  if (parsedNum === null || isNaN(parsedNum) || parsedNum <= 0) {
+    return {
+      isValid: false,
+      finalAmountToCollect: 0,
+      originalCodAmountValue,
+      originalCodAmountType,
+      originalCodAmountPresent,
+      finalAmountType: typeof parsedNum,
+      sourceField,
+      isCodOrder: true,
+      paymentMethod,
+      errorReason: `Pathao Shipment Error: Invalid or missing COD collection amount for COD order. Received: ${JSON.stringify(foundValue)} (type: ${originalCodAmountType}, field: ${sourceField}). COD amount must be a positive number.`,
+    };
+  }
+
+  return {
+    isValid: true,
+    finalAmountToCollect: Math.round(parsedNum),
+    originalCodAmountValue,
+    originalCodAmountType,
+    originalCodAmountPresent,
+    finalAmountType: 'number',
+    sourceField,
+    isCodOrder: true,
+    paymentMethod,
+  };
+}
+
 export async function createPathaoShipment(req: CourierShipmentRequest): Promise<CourierShipmentResponse> {
   const creds = await getPathaoCredentials();
   const baseUrl = getPathaoBaseUrl();
   const orderEndpoint = `${baseUrl}/aladdin/api/v1/orders`;
+  const orderId = String(req.orderId || req.order?.id || 'N/A');
 
-  console.log(`[Pathao Shipment] Starting shipment creation for order #${req.orderId} via store: ${creds?.store_id}`);
+  console.log(`[Pathao Shipment] Starting shipment creation for order #${orderId} via store: ${creds?.store_id}`);
+
+  // Resolve & audit COD amount
+  const codRes = resolveCodAmount(req);
+
+  // Safe diagnostic log required by Requirement 7
+  const codDiagnostic = {
+    orderId,
+    originalCodAmountType: codRes.originalCodAmountType,
+    originalCodAmountPresent: codRes.originalCodAmountPresent,
+    finalAmountToCollect: codRes.finalAmountToCollect,
+    finalAmountType: codRes.finalAmountType,
+    sourceField: codRes.sourceField,
+    paymentMethod: codRes.paymentMethod,
+    isCodOrder: codRes.isCodOrder,
+  };
+
+  console.log('[Pathao COD Diagnostic]', codDiagnostic);
+
+  // Reject shipment creation if COD order has invalid or missing COD amount
+  if (!codRes.isValid) {
+    const errorMsg = codRes.errorReason || `Pathao Shipment Error: Invalid COD amount (${codRes.finalAmountToCollect}) for COD order #${orderId}.`;
+    console.error(`[Pathao Shipment Error] ${errorMsg}`);
+    await logDiagnostic('SHIPMENT_COD_INVALID', orderEndpoint, { orderId, codDiagnostic }, { error: errorMsg }, 400, errorMsg);
+    return {
+      success: false,
+      courierName: 'Pathao Courier',
+      trackingNumber: '',
+      consignmentId: '',
+      status: 'Failed',
+      deliveryFee: 0,
+      estimatedDeliveryDays: 'N/A',
+      message: errorMsg,
+      errorDetails: errorMsg,
+      isMockFallback: false,
+    };
+  }
 
   const token = await getPathaoAccessToken();
 
   if (!token) {
     const errMsg = 'Pathao OAuth authentication failed: Unable to obtain access token due to missing or invalid credentials.';
     console.error(`[Pathao Shipment Error] ${errMsg}`);
-    await logDiagnostic('SHIPMENT_AUTH_ERROR', orderEndpoint, { orderId: req.orderId }, { error: errMsg }, 401, errMsg);
+    await logDiagnostic('SHIPMENT_AUTH_ERROR', orderEndpoint, { orderId }, { error: errMsg }, 401, errMsg);
     return {
       success: false,
       courierName: 'Pathao Courier',
@@ -491,20 +652,26 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     };
   }
 
+  const recipientName = req.recipientName || req.order?.shippingAddress?.fullName || 'Customer';
+  const recipientPhone = req.recipientPhone || req.order?.shippingAddress?.phone || '01700000000';
+  const rawAddress = req.address || req.order?.shippingAddress?.fullAddress || 'Dhaka';
+  const thana = req.thana || req.order?.shippingAddress?.thana || '';
+  const district = req.district || req.order?.shippingAddress?.district || 'Dhaka';
+
   const payload = {
     store_id: creds?.store_id || 'pth_store_dhanmondi_01',
-    merchant_order_id: String(req.orderId),
-    recipient_name: req.recipientName,
-    recipient_phone: req.recipientPhone,
-    recipient_address: `${req.address}, ${req.thana || ''}, ${req.district}`.replace(/,\s*,/g, ','),
-    recipient_city: req.district.toLowerCase().includes('dhaka') ? 1 : 2,
+    merchant_order_id: orderId,
+    recipient_name: recipientName,
+    recipient_phone: recipientPhone,
+    recipient_address: `${rawAddress}, ${thana}, ${district}`.replace(/,\s*,/g, ',').replace(/^,\s*|\s*,\s*$/g, ''),
+    recipient_city: district.toLowerCase().includes('dhaka') ? 1 : 2,
     recipient_zone: 1,
-    delivery_type: req.district.toLowerCase().includes('dhaka') ? 48 : 12,
+    delivery_type: district.toLowerCase().includes('dhaka') ? 48 : 12,
     item_type: 2,
-    special_instruction: req.specialInstruction || 'Handle with care - E-commerce order',
+    special_instruction: req.specialInstruction || req.order?.shippingAddress?.notes || 'Handle with care - E-commerce order',
     item_quantity: 1,
     item_weight: req.itemWeightKg || 0.5,
-    amount_to_collect: req.codAmount,
+    amount_to_collect: codRes.finalAmountToCollect,
   };
 
   console.log('[Pathao Shipment Request Body] POST', orderEndpoint, payload);
@@ -521,7 +688,19 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     });
 
     const data = await res.json().catch(() => ({}));
-    console.log('[Pathao Shipment Response]', { status: res.status, ok: res.ok, data });
+
+    // Verify whether Pathao accepted/returned the COD amount
+    const pathaoReturnedCod = data?.data?.amount_to_collect ?? data?.amount_to_collect ?? data?.data?.collectable_amount ?? null;
+    const codAccepted = pathaoReturnedCod !== null ? Number(pathaoReturnedCod) === codRes.finalAmountToCollect : res.ok;
+
+    console.log('[Pathao Shipment Response]', {
+      status: res.status,
+      ok: res.ok,
+      sent_amount_to_collect: codRes.finalAmountToCollect,
+      pathao_returned_cod: pathaoReturnedCod,
+      cod_accepted: codAccepted,
+      data,
+    });
 
     const isSuccess = res.ok && (data.code === 200 || data.code === '200' || data.status === 'success' || data.data?.consignment_id);
 
@@ -529,7 +708,7 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
       const consignmentId = data.data.consignment_id || `PTH-C-${Math.floor(100000 + Math.random() * 900000)}`;
       const trackingNumber = data.data.tracking_code || consignmentId;
 
-      await logDiagnostic('SHIPMENT_SUCCESS', orderEndpoint, payload, data, res.status, null);
+      await logDiagnostic('SHIPMENT_SUCCESS', orderEndpoint, payload, { ...data, cod_audit: codDiagnostic, cod_accepted: codAccepted }, res.status, null);
 
       return {
         success: true,
@@ -537,9 +716,9 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
         trackingNumber,
         consignmentId,
         status: data.data.order_status || 'Pending Pickup',
-        deliveryFee: req.district.toLowerCase().includes('dhaka') ? 60 : 120,
-        estimatedDeliveryDays: req.district.toLowerCase().includes('dhaka') ? 'Express Same Day' : '2-3 Days',
-        message: `✅ Consignment successfully created in Pathao merchant panel! Tracking #: ${trackingNumber}`,
+        deliveryFee: district.toLowerCase().includes('dhaka') ? 60 : 120,
+        estimatedDeliveryDays: district.toLowerCase().includes('dhaka') ? 'Express Same Day' : '2-3 Days',
+        message: `✅ Consignment successfully created in Pathao merchant panel! Tracking #: ${trackingNumber} (COD Collection: ৳${codRes.finalAmountToCollect})`,
         rawResponse: data,
         isMockFallback: false,
       };
@@ -547,7 +726,7 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
       const exactError = data.message || (data.errors ? (typeof data.errors === 'string' ? data.errors : JSON.stringify(data.errors)) : null) || JSON.stringify(data) || `Pathao API error HTTP ${res.status}`;
       console.error(`[Pathao API Error] ${exactError}`);
 
-      await logDiagnostic('SHIPMENT_API_ERROR', orderEndpoint, payload, data, res.status, exactError);
+      await logDiagnostic('SHIPMENT_API_ERROR', orderEndpoint, payload, { ...data, cod_audit: codDiagnostic }, res.status, exactError);
 
       return {
         success: false,
@@ -566,7 +745,7 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     const errorMsg = error?.message || 'Network connection timeout to Pathao API';
     console.error('[Pathao Shipment Exception]', error);
 
-    await logDiagnostic('SHIPMENT_EXCEPTION', orderEndpoint, payload, { error: errorMsg }, 500, errorMsg);
+    await logDiagnostic('SHIPMENT_EXCEPTION', orderEndpoint, payload, { error: errorMsg, cod_audit: codDiagnostic }, 500, errorMsg);
 
     return {
       success: false,

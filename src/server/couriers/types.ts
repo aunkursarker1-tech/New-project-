@@ -9,7 +9,12 @@ export interface CourierShipmentRequest {
   division: string;
   district: string;
   thana: string;
-  codAmount: number;
+  codAmount: number | string;
+  amount_to_collect?: number | string;
+  cod_amount?: number | string;
+  total?: number | string;
+  paymentMethod?: string;
+  order?: any;
   itemDescription: string;
   itemWeightKg?: number;
   specialInstruction?: string;

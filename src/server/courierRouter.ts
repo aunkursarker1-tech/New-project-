@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createShipment, getTrackingInfo, getHealthStatus, autoSelectCourier } from './couriers/courierService.js';
 import { testSteadfastConnection } from './couriers/steadfast.js';
-import { testPathaoConnection } from './couriers/pathao.js';
+import { testPathaoConnection, resolveCodAmount } from './couriers/pathao.js';
 import { CourierShipmentRequest, CourierPartner } from './couriers/types.js';
 import { getSupabaseServerClient, cleanString } from './supabaseServer.js';
 import { getStoredCourierSettings, setStoredCourierSettings, getAllStoredCourierSettings } from './courierSettingsStore.js';
@@ -338,7 +338,7 @@ courierRouter.get('/print-label/:trackingNumber', async (req, res) => {
 // 8. Create Courier Shipment
 courierRouter.post('/create-shipment', async (req, res) => {
   try {
-    const { order, courierName, specialInstruction, weight } = req.body;
+    const { order, courierName, specialInstruction, weight, codAmount, amount_to_collect, cod_amount } = req.body;
 
     if (!order || !order.id || !order.shippingAddress) {
       return res.status(400).json({
@@ -346,6 +346,8 @@ courierRouter.post('/create-shipment', async (req, res) => {
         message: 'Invalid request: order details with shippingAddress are required.',
       });
     }
+
+    const resolvedCod = codAmount ?? amount_to_collect ?? cod_amount ?? order.total ?? 0;
 
     const shipmentReq: CourierShipmentRequest = {
       orderId: order.id,
@@ -356,7 +358,12 @@ courierRouter.post('/create-shipment', async (req, res) => {
       division: order.shippingAddress.division || 'Dhaka',
       district: order.shippingAddress.district || 'Dhaka',
       thana: order.shippingAddress.thana || 'Dhanmondi',
-      codAmount: order.paymentMethod === 'COD' ? order.total : 0,
+      codAmount: resolvedCod,
+      amount_to_collect,
+      cod_amount,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      order,
       itemDescription: order.items?.map((i: any) => `${i.product?.name || 'Item'} (x${i.quantity})`).join(', ') || 'Gadget Item',
       itemWeightKg: weight || 0.5,
       specialInstruction: specialInstruction || order.shippingAddress.notes,
@@ -371,6 +378,19 @@ courierRouter.post('/create-shipment', async (req, res) => {
       success: false,
       message: `Failed to create shipment: ${err?.message || 'Unknown error'}`,
     });
+  }
+});
+
+// 8.5 Diagnostic Endpoint for COD Amount Resolution Test
+courierRouter.post('/test-cod-resolution', (req, res) => {
+  try {
+    const resolution = resolveCodAmount(req.body);
+    res.json({
+      success: resolution.isValid,
+      resolution,
+    });
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: err?.message });
   }
 });
 
@@ -423,7 +443,10 @@ courierRouter.post('/auto-ship', async (req, res) => {
       division: order.shippingAddress?.division || 'Dhaka',
       district: order.shippingAddress?.district || 'Dhaka',
       thana: order.shippingAddress?.thana || 'Dhanmondi',
-      codAmount: order.paymentMethod === 'COD' ? order.total : 0,
+      codAmount: order.total ?? 0,
+      total: order.total,
+      paymentMethod: order.paymentMethod,
+      order,
       itemDescription: 'Gadgetghor Package',
       itemWeightKg: 0.5,
       courierName: selectedCourier,
