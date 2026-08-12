@@ -176,6 +176,20 @@ export async function testCourierConnection(payload: {
   }
 }
 
+function cleanString(str: string | undefined | null): string {
+  return (str || '')
+    .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
+function getCanonicalProvider(prov: string | undefined | null): string {
+  const lower = (prov || '').trim().toLowerCase();
+  if (lower === 'pathao') return 'Pathao';
+  if (lower === 'steadfast') return 'Steadfast';
+  return prov || 'Pathao';
+}
+
 export async function saveCourierSettings(payload: {
   provider: string;
   client_id?: string;
@@ -186,65 +200,161 @@ export async function saveCourierSettings(payload: {
   sandbox?: boolean;
   is_active?: boolean;
 }): Promise<any> {
-  console.log('[Supabase Courier Settings] Upserting payload to courier_settings table:', payload);
-  const { data, error, status, statusText } = await supabase
-    .from('courier_settings')
-    .upsert(
-      {
-        provider: payload.provider,
-        client_id: payload.client_id || '',
-        client_secret: payload.client_secret || '',
-        username: payload.username || '',
-        password: payload.password || '',
-        store_id: payload.store_id || '',
-        sandbox: payload.sandbox !== undefined ? payload.sandbox : true,
-        is_active: payload.is_active !== undefined ? payload.is_active : true,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'provider' }
-    )
-    .select();
+  const canonicalProvider = getCanonicalProvider(payload.provider);
+  const cleanClientId = cleanString(payload.client_id);
+  const cleanClientSecret = cleanString(payload.client_secret);
+  const cleanUsername = cleanString(payload.username);
+  const cleanPassword = cleanString(payload.password);
+  const cleanStoreId = cleanString(payload.store_id);
 
-  console.log('[Supabase Courier Settings] Full Supabase response:', { data, error, status, statusText });
+  console.log('[Supabase Courier Settings] Upserting canonical provider:', canonicalProvider, {
+    has_client_id: Boolean(cleanClientId),
+    has_client_secret: Boolean(cleanClientSecret),
+    has_username: Boolean(cleanUsername),
+    has_password: Boolean(cleanPassword),
+    has_store_id: Boolean(cleanStoreId),
+    sandbox: payload.sandbox,
+    is_active: payload.is_active,
+  });
 
-  if (error) {
-    console.error('[Supabase Courier Settings Error]', error);
-    throw new Error(error.message || 'Supabase upsert failed');
+  // 1. Clean up non-canonical duplicate rows (e.g. 'pathao') in Supabase
+  try {
+    const { data: existingRows } = await supabase
+      .from('courier_settings')
+      .select('id, provider')
+      .ilike('provider', canonicalProvider);
+
+    if (existingRows && existingRows.length > 0) {
+      const duplicateIds = existingRows
+        .filter((r: any) => r.provider !== canonicalProvider)
+        .map((r: any) => r.id);
+
+      if (duplicateIds.length > 0) {
+        console.log('[Supabase Courier Settings] Cleaning up non-canonical duplicate IDs:', duplicateIds);
+        await supabase.from('courier_settings').delete().in('id', duplicateIds);
+      }
+    }
+  } catch (cleanErr) {
+    console.warn('[Supabase Courier Settings] Duplicate cleanup warning:', cleanErr);
   }
 
-  // Reload data from database to confirm storage
-  const reloaded = await getCourierSettings(payload.provider);
-  console.log('[Supabase Courier Settings] Confirmed reloaded record from DB:', reloaded);
+  // 2. Perform UPSERT into Supabase courier_settings or sync to server endpoint
+  let supabaseData = null;
+  try {
+    const { data, error } = await supabase
+      .from('courier_settings')
+      .upsert(
+        {
+          provider: canonicalProvider,
+          client_id: cleanClientId,
+          client_secret: cleanClientSecret,
+          username: cleanUsername,
+          password: cleanPassword,
+          store_id: cleanStoreId,
+          sandbox: payload.sandbox !== undefined ? payload.sandbox : true,
+          is_active: payload.is_active !== undefined ? payload.is_active : true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'provider' }
+      )
+      .select();
+
+    if (error) {
+      console.warn('[Supabase Courier Settings Notice]', error.message);
+    } else {
+      supabaseData = data;
+    }
+  } catch (supabaseErr: any) {
+    console.warn('[Supabase Courier Settings Exception]', supabaseErr?.message);
+  }
+
+  // 3. Sync to server-side endpoint
+  let serverRecord = null;
+  try {
+    const res = await fetch('/api/courier/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider: canonicalProvider,
+        client_id: cleanClientId,
+        client_secret: cleanClientSecret,
+        username: cleanUsername,
+        password: cleanPassword,
+        store_id: cleanStoreId,
+        sandbox: payload.sandbox !== undefined ? payload.sandbox : true,
+        is_active: payload.is_active !== undefined ? payload.is_active : true,
+      }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      serverRecord = json.record;
+    }
+  } catch (e) {
+    console.warn('[Server Settings Sync Error]', e);
+  }
+
+  // 4. Reload from database or server store to confirm exact stored record
+  const reloaded = await getCourierSettings(canonicalProvider);
+  console.log('[Supabase Courier Settings] Verified stored record:', {
+    provider: reloaded?.provider || serverRecord?.provider,
+    has_client_id: Boolean(reloaded?.client_id || serverRecord?.client_id),
+    has_client_secret: Boolean(reloaded?.client_secret || serverRecord?.client_secret),
+    has_username: Boolean(reloaded?.username || serverRecord?.username),
+    has_password: Boolean(reloaded?.password || serverRecord?.password),
+    store_id: reloaded?.store_id || serverRecord?.store_id,
+    sandbox: reloaded?.sandbox ?? serverRecord?.sandbox,
+  });
 
   return {
     success: true,
-    data: data || reloaded,
-    message: `Settings for ${payload.provider} saved and verified in Supabase successfully.`,
+    data: reloaded || serverRecord || supabaseData?.[0],
+    message: `Settings for ${canonicalProvider} saved successfully.`,
   };
 }
 
 export async function getCourierSettings(provider?: string): Promise<any> {
   try {
     if (provider) {
+      const canonicalProvider = getCanonicalProvider(provider);
       const { data, error } = await supabase
         .from('courier_settings')
         .select('*')
-        .eq('provider', provider)
+        .eq('provider', canonicalProvider)
         .maybeSingle();
-      if (error) {
-        console.error('[Supabase Get Courier Settings Error]', error);
-        return null;
+
+      if (!error && data) {
+        return data;
       }
-      return data;
+
+      // Fallback 1: check ilike in Supabase
+      const { data: ilikeData } = await supabase
+        .from('courier_settings')
+        .select('*')
+        .ilike('provider', canonicalProvider)
+        .maybeSingle();
+
+      if (ilikeData) return ilikeData;
+
+      // Fallback 2: call server API route
+      const res = await fetch(`/api/courier/settings?provider=${encodeURIComponent(canonicalProvider)}`);
+      if (res.ok) {
+        const json = await res.json();
+        return json.settings || null;
+      }
+      return null;
     } else {
       const { data, error } = await supabase
         .from('courier_settings')
         .select('*');
-      if (error) {
-        console.error('[Supabase Get Courier Settings Error]', error);
-        return null;
+      if (!error && data && data.length > 0) {
+        return data;
       }
-      return data;
+      const res = await fetch('/api/courier/settings');
+      if (res.ok) {
+        const json = await res.json();
+        return json.settings || [];
+      }
+      return null;
     }
   } catch (err) {
     console.error('[Supabase Get Courier Settings Exception]', err);

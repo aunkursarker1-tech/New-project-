@@ -3,15 +3,25 @@ import { createClient } from '@supabase/supabase-js';
 const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-function getSafeSupabaseUrl(urlStr: string | undefined): string {
+function cleanString(str: string | undefined): string {
+  return (str || '')
+    .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
+const cleanedUrl = cleanString(rawUrl);
+const cleanedKey = cleanString(rawKey);
+
+function getSafeSupabaseUrl(urlStr: string): string {
   const fallback = 'https://placeholder.supabase.co';
-  if (!urlStr || typeof urlStr !== 'string' || !urlStr.trim()) {
+  if (!urlStr) {
     return fallback;
   }
   try {
-    const formatted = urlStr.trim().startsWith('http://') || urlStr.trim().startsWith('https://')
-      ? urlStr.trim()
-      : `https://${urlStr.trim()}`;
+    const formatted = urlStr.startsWith('http://') || urlStr.startsWith('https://')
+      ? urlStr
+      : `https://${urlStr}`;
     const parsed = new URL(formatted);
     if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
       return formatted;
@@ -22,12 +32,12 @@ function getSafeSupabaseUrl(urlStr: string | undefined): string {
   return fallback;
 }
 
-const supabaseUrl = getSafeSupabaseUrl(rawUrl);
-const supabaseAnonKey = (rawKey && typeof rawKey === 'string' && rawKey.trim()) ? rawKey.trim() : 'placeholder-key';
+const supabaseUrl = getSafeSupabaseUrl(cleanedUrl);
+const supabaseAnonKey = cleanedKey || 'placeholder-key';
 
 export const isSupabaseConfigured = Boolean(
-  rawUrl &&
-  rawKey &&
+  cleanedUrl &&
+  cleanedKey &&
   supabaseUrl !== 'https://placeholder.supabase.co' &&
   supabaseAnonKey !== 'placeholder-key'
 );

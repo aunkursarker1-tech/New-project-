@@ -1,28 +1,9 @@
 import { CourierShipmentRequest, CourierShipmentResponse, CourierTrackingResponse } from './types.js';
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServerClient, cleanString } from '../supabaseServer.js';
+import { getStoredCourierSettings } from '../courierSettingsStore.js';
 
-const DEFAULT_BASE_URL = 'https://api.pathao.com';
-
-function cleanString(str: string): string {
-  return (str || '')
-    .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
-    .replace(/^["']|["']$/g, '')
-    .trim();
-}
-
-function getSupabaseClient() {
-  let url = cleanString(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '');
-  let key = cleanString(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '');
-  if (!url || !key || !url.startsWith('http')) {
-    return null;
-  }
-  try {
-    return createClient(url, key);
-  } catch (err) {
-    console.warn('[Pathao Supabase Client Error] Failed to initialize Supabase client:', err);
-    return null;
-  }
-}
+const DEFAULT_BASE_URL = 'https://api-hermes.pathao.com';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -35,8 +16,8 @@ export function getPathaoBaseUrl(): string {
   }
   // Strip trailing /aladdin/api/v1 if included in PATHAO_BASE_URL env var
   url = url.replace(/\/aladdin\/api\/v1\/?$/i, '');
-  if (url.includes('api-hermes.pathao.com')) {
-    url = url.replace(/api-hermes\.pathao\.com/g, 'api.pathao.com');
+  if (url === 'https://api.pathao.com') {
+    url = 'https://api-hermes.pathao.com';
   }
   return url;
 }
@@ -80,7 +61,7 @@ async function logDiagnostic(
     error: errorMsg,
   });
 
-  const supabase = getSupabaseClient();
+  const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
       await supabase.from('courier_diagnostic_logs').insert([logEntry]);
@@ -101,9 +82,28 @@ export async function getPathaoCredentials() {
   let store_id = (process.env.PATHAO_STORE_ID || 'pth_store_dhanmondi_01').trim();
   let sandbox = process.env.PATHAO_SANDBOX !== 'false';
   let credentialSource = 'Environment Variables';
-  const supabase = getSupabaseClient();
+
+  const supabase = getSupabaseServerClient();
   if (supabase) {
     try {
+      // 1. Clean duplicate non-canonical rows if any exist
+      const { data: ilikeRows } = await supabase
+        .from('courier_settings')
+        .select('id, provider')
+        .ilike('provider', 'pathao');
+
+      if (ilikeRows && ilikeRows.length > 0) {
+        const nonCanonicalIds = ilikeRows
+          .filter((r: any) => r.provider !== 'Pathao')
+          .map((r: any) => r.id);
+
+        if (nonCanonicalIds.length > 0) {
+          console.log('[Pathao Credentials] Removing non-canonical duplicate rows:', nonCanonicalIds);
+          await supabase.from('courier_settings').delete().in('id', nonCanonicalIds);
+        }
+      }
+
+      // 2. Fetch canonical Pathao row
       const { data, error } = await supabase
         .from('courier_settings')
         .select('*')
@@ -143,13 +143,40 @@ export async function getPathaoCredentials() {
           sandbox = Boolean(row.sandbox);
         }
       } else {
-        console.log('[Pathao Credentials] No row found in courier_settings for provider = Pathao. Falling back to env variables.');
+        console.log('[Pathao Credentials] No row found in courier_settings for provider = Pathao in Supabase.');
       }
     } catch (err: any) {
-      console.warn('[Pathao Credentials Exception] Error querying courier_settings, falling back to env:', err?.message);
+      console.warn('[Pathao Credentials Exception] Error querying courier_settings:', err?.message);
     }
   } else {
-    console.warn('[Pathao Credentials] Supabase client is not initialized. Falling back to server environment variables.');
+    console.warn('[Pathao Credentials] Supabase client is not initialized.');
+  }
+
+  // Check in-memory store (saved via Admin Panel)
+  const memSettings = getStoredCourierSettings('Pathao');
+  if (memSettings) {
+    if ((!rawClientId || credentialSource === 'Environment Variables') && memSettings.client_id) {
+      rawClientId = memSettings.client_id;
+      credentialSource = 'Admin Panel Store';
+    }
+    if ((!rawClientSecret || credentialSource === 'Environment Variables') && memSettings.client_secret) {
+      rawClientSecret = memSettings.client_secret;
+      credentialSource = 'Admin Panel Store';
+    }
+    if ((!rawUsername || credentialSource === 'Environment Variables') && memSettings.username) {
+      rawUsername = memSettings.username;
+      credentialSource = 'Admin Panel Store';
+    }
+    if ((!rawPassword || credentialSource === 'Environment Variables') && memSettings.password) {
+      rawPassword = memSettings.password;
+      credentialSource = 'Admin Panel Store';
+    }
+    if (memSettings.store_id) {
+      store_id = memSettings.store_id;
+    }
+    if (memSettings.sandbox !== undefined) {
+      sandbox = Boolean(memSettings.sandbox);
+    }
   }
 
   // Check for leading/trailing whitespace or hidden control characters before cleaning

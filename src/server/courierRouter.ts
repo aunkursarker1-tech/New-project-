@@ -3,11 +3,10 @@ import { createShipment, getTrackingInfo, getHealthStatus, autoSelectCourier } f
 import { testSteadfastConnection } from './couriers/steadfast.js';
 import { testPathaoConnection } from './couriers/pathao.js';
 import { CourierShipmentRequest, CourierPartner } from './couriers/types.js';
+import { getSupabaseServerClient, cleanString } from './supabaseServer.js';
+import { getStoredCourierSettings, setStoredCourierSettings, getAllStoredCourierSettings } from './courierSettingsStore.js';
 
 export const courierRouter = Router();
-
-// In-memory fallback store for courier settings when DB is initializing
-const courierSettingsStore = new Map<string, any>();
 
 // 1. Health & Config Status Check
 courierRouter.get('/status', (req, res) => {
@@ -25,14 +24,36 @@ courierRouter.get('/status', (req, res) => {
 });
 
 // 2. Get Courier Settings
-courierRouter.get('/settings', (req, res) => {
+courierRouter.get('/settings', async (req, res) => {
   try {
-    const provider = req.query.provider as string;
-    if (provider) {
-      const settings = courierSettingsStore.get(provider) || { provider, sandbox: true, is_active: true };
+    const rawProvider = req.query.provider as string;
+    if (rawProvider) {
+      const canonicalProvider = rawProvider.trim().toLowerCase() === 'pathao' ? 'Pathao' : rawProvider.trim().toLowerCase() === 'steadfast' ? 'Steadfast' : rawProvider;
+      const supabase = getSupabaseServerClient();
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('courier_settings')
+          .select('*')
+          .eq('provider', canonicalProvider)
+          .maybeSingle();
+
+        if (!error && data) {
+          return res.json({ success: true, settings: data });
+        }
+      }
+      const settings = getStoredCourierSettings(canonicalProvider) || { provider: canonicalProvider, sandbox: true, is_active: true };
       return res.json({ success: true, settings });
     }
-    const allSettings = Array.from(courierSettingsStore.entries()).map(([k, v]) => v);
+
+    const supabase = getSupabaseServerClient();
+    if (supabase) {
+      const { data, error } = await supabase.from('courier_settings').select('*');
+      if (!error && data && data.length > 0) {
+        return res.json({ success: true, settings: data });
+      }
+    }
+
+    const allSettings = getAllStoredCourierSettings();
     res.json({ success: true, settings: allSettings });
   } catch (err: any) {
     console.error('[Get Courier Settings Error]', err);
@@ -41,32 +62,97 @@ courierRouter.get('/settings', (req, res) => {
 });
 
 // 3. Save / Upsert Courier Settings
-courierRouter.post('/settings', (req, res) => {
+courierRouter.post('/settings', async (req, res) => {
   try {
     const { provider, client_id, client_secret, username, password, store_id, sandbox, is_active } = req.body;
     if (!provider) {
       return res.status(400).json({ success: false, message: 'Provider name is required.' });
     }
 
-    const record = {
-      id: courierSettingsStore.has(provider) ? courierSettingsStore.get(provider).id : 'cs-' + Math.random().toString(36).substr(2, 9),
-      provider,
-      client_id: client_id || '',
-      client_secret: client_secret || '',
-      username: username || '',
-      password: password || '',
-      store_id: store_id || '',
+    const canonicalProvider = provider.trim().toLowerCase() === 'pathao' ? 'Pathao' : provider.trim().toLowerCase() === 'steadfast' ? 'Steadfast' : provider;
+    const cleanClientId = cleanString(client_id);
+    const cleanClientSecret = cleanString(client_secret);
+    const cleanUsername = cleanString(username);
+    const cleanPassword = cleanString(password);
+    const cleanStoreId = cleanString(store_id);
+
+    // Clean duplicate non-canonical rows in Supabase if connected
+    const supabase = getSupabaseServerClient();
+    let dbRecord = null;
+    if (supabase) {
+      try {
+        const { data: existingRows } = await supabase
+          .from('courier_settings')
+          .select('id, provider')
+          .ilike('provider', canonicalProvider);
+
+        if (existingRows && existingRows.length > 0) {
+          const duplicateIds = existingRows
+            .filter((r: any) => r.provider !== canonicalProvider)
+            .map((r: any) => r.id);
+
+          if (duplicateIds.length > 0) {
+            console.log('[Courier Settings Route] Removing duplicate non-canonical provider rows:', duplicateIds);
+            await supabase.from('courier_settings').delete().in('id', duplicateIds);
+          }
+        }
+
+        const { data, error } = await supabase
+          .from('courier_settings')
+          .upsert(
+            {
+              provider: canonicalProvider,
+              client_id: cleanClientId,
+              client_secret: cleanClientSecret,
+              username: cleanUsername,
+              password: cleanPassword,
+              store_id: cleanStoreId,
+              sandbox: sandbox !== undefined ? sandbox : true,
+              is_active: is_active !== undefined ? is_active : true,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'provider' }
+          )
+          .select();
+
+        if (error) {
+          console.error('[Courier Settings Route Supabase Upsert Error]', error);
+        } else if (data && data.length > 0) {
+          dbRecord = data[0];
+        }
+      } catch (dbErr) {
+        console.warn('[Courier Settings Route Supabase Exception]', dbErr);
+      }
+    }
+
+    const existingMem = getStoredCourierSettings(canonicalProvider);
+    const record = dbRecord || {
+      id: existingMem?.id || 'cs-' + Math.random().toString(36).substr(2, 9),
+      provider: canonicalProvider,
+      client_id: cleanClientId,
+      client_secret: cleanClientSecret,
+      username: cleanUsername,
+      password: cleanPassword,
+      store_id: cleanStoreId,
       sandbox: sandbox !== undefined ? sandbox : true,
       is_active: is_active !== undefined ? is_active : true,
       updated_at: new Date().toISOString(),
     };
 
-    courierSettingsStore.set(provider, record);
-    console.log(`[Courier Settings Upserted] Provider: ${provider}`, { sandbox, is_active, hasClientId: Boolean(client_id) });
+    setStoredCourierSettings(canonicalProvider, record);
+    console.log(`[Courier Settings Upserted] Provider: ${canonicalProvider}`, {
+      sandbox: record.sandbox,
+      is_active: record.is_active,
+      has_client_id: Boolean(cleanClientId),
+      has_client_secret: Boolean(cleanClientSecret),
+      has_username: Boolean(cleanUsername),
+      has_password: Boolean(cleanPassword),
+      store_id: cleanStoreId,
+    });
 
     res.json({
       success: true,
-      message: `Settings for ${provider} saved successfully.`,
+      message: `Settings for ${canonicalProvider} saved successfully.`,
       record,
     });
   } catch (err: any) {

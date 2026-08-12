@@ -30,11 +30,11 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
 
   // Form Fields State per Provider
   const [formData, setFormData] = useState({
-    client_id: 'pth_client_441209',
-    client_secret: 'pth_sec_9012384712',
+    client_id: '',
+    client_secret: '',
     username: '',
     password: '',
-    store_id: 'pth_store_dhanmondi_01',
+    store_id: '',
     sandbox: true,
     is_active: true,
   });
@@ -72,8 +72,11 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
         const settings = await getCourierSettings('Pathao');
         const res = await testCourierConnection({
           provider: 'Pathao',
-          client_id: settings?.client_id || formData.client_id || 'pth_client_441209',
-          client_secret: settings?.client_secret || formData.client_secret || 'pth_sec_9012384712',
+          client_id: settings?.client_id || formData.client_id,
+          client_secret: settings?.client_secret || formData.client_secret,
+          username: settings?.username || formData.username,
+          password: settings?.password || formData.password,
+          store_id: settings?.store_id || formData.store_id,
         });
         setPathaoTestResult({
           success: res.success,
@@ -121,6 +124,16 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
           sandbox: settings.sandbox !== undefined ? settings.sandbox : true,
           is_active: settings.is_active !== undefined ? settings.is_active : true,
         });
+      } else {
+        setFormData({
+          client_id: '',
+          client_secret: '',
+          username: '',
+          password: '',
+          store_id: '',
+          sandbox: true,
+          is_active: true,
+        });
       }
     } catch (err) {
       console.error('Failed to load provider settings:', err);
@@ -140,9 +153,14 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
     setErrorMessage('');
 
     try {
-      // Validate fields
-      if (!formData.client_id) {
-        throw new Error('Client ID / API Key is required.');
+      if (selectedProvider === 'Pathao') {
+        if (!formData.client_id || !formData.client_secret || !formData.username || !formData.password || !formData.store_id) {
+          throw new Error('For Pathao integration, Client ID, Client Secret, Username, Password, and Store ID are all required.');
+        }
+      } else {
+        if (!formData.client_id || !formData.client_secret) {
+          throw new Error('Steadfast API Key and Secret Key are required.');
+        }
       }
 
       const res = await saveCourierSettings({
@@ -152,6 +170,7 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
 
       if (res.success) {
         setSuccessMessage(`✅ Successfully saved configuration and credentials for ${selectedProvider}!`);
+        await loadProviderSettings(selectedProvider);
       } else {
         throw new Error(res.message || 'Failed to save configuration');
       }
@@ -411,14 +430,14 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                {selectedProvider} Client ID / API Key / Token *
+                {selectedProvider === 'Pathao' ? 'Pathao Client ID *' : 'Steadfast API Key *'}
               </label>
               <input
                 type="text"
                 required
                 value={formData.client_id}
                 onChange={(e) => setFormData({ ...formData, client_id: e.target.value })}
-                placeholder={`Enter ${selectedProvider} API Key or Client ID`}
+                placeholder={selectedProvider === 'Pathao' ? 'Enter Pathao Client ID' : 'Enter Steadfast API Key'}
                 className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
                   darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
                 }`}
@@ -427,13 +446,14 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1.5">
-                {selectedProvider} Client Secret / Password
+                {selectedProvider === 'Pathao' ? 'Pathao Client Secret *' : 'Steadfast Secret Key *'}
               </label>
               <input
                 type="password"
+                required
                 value={formData.client_secret}
                 onChange={(e) => setFormData({ ...formData, client_secret: e.target.value })}
-                placeholder="Enter Secret Key"
+                placeholder={selectedProvider === 'Pathao' ? 'Enter Pathao Client Secret' : 'Enter Steadfast Secret Key'}
                 className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
                   darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
                 }`}
@@ -441,12 +461,15 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">Username (Optional)</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {selectedProvider === 'Pathao' ? 'Pathao Merchant Username / Email *' : 'Username (Optional)'}
+              </label>
               <input
                 type="text"
+                required={selectedProvider === 'Pathao'}
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                placeholder="Merchant Username"
+                placeholder={selectedProvider === 'Pathao' ? 'merchant@example.com' : 'Optional Username'}
                 className={`w-full px-4 py-2.5 rounded-2xl text-xs outline-none border transition-all ${
                   darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
                 }`}
@@ -454,12 +477,31 @@ export const CourierIntegrationSection: React.FC<CourierIntegrationSectionProps>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1.5">Store ID / Warehouse ID</label>
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {selectedProvider === 'Pathao' ? 'Pathao Account Password *' : 'Password (Optional)'}
+              </label>
+              <input
+                type="password"
+                required={selectedProvider === 'Pathao'}
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                placeholder={selectedProvider === 'Pathao' ? 'Enter Pathao Account Password' : 'Optional Password'}
+                className={`w-full px-4 py-2.5 rounded-2xl text-xs outline-none border transition-all ${
+                  darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
+                }`}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                {selectedProvider === 'Pathao' ? 'Pathao Store ID *' : 'Store ID / Warehouse ID (Optional)'}
+              </label>
               <input
                 type="text"
+                required={selectedProvider === 'Pathao'}
                 value={formData.store_id}
                 onChange={(e) => setFormData({ ...formData, store_id: e.target.value })}
-                placeholder="e.g. pth_store_dhanmondi_01"
+                placeholder={selectedProvider === 'Pathao' ? 'e.g. 123456 or pth_store_dhanmondi_01' : 'Optional Store ID'}
                 className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono outline-none border transition-all ${
                   darkMode ? 'bg-slate-950 border-slate-800 text-white focus:border-rose-500' : 'bg-slate-50 border-slate-300 text-slate-900 focus:border-rose-500'
                 }`}
