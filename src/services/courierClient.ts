@@ -51,7 +51,7 @@ export async function checkCourierHealth(): Promise<CourierApiStatus[]> {
 
   return [
     { courier: 'Steadfast Courier', configured: true, active: true, baseUrl: 'https://portal.packzy.com/api/v1', message: 'Ready via Steadfast Merchant Portal' },
-    { courier: 'Pathao Courier', configured: true, active: true, baseUrl: 'https://api-hermes.pathao.com', message: 'Ready via Pathao Hermes API' },
+    { courier: 'Pathao Courier', configured: true, active: true, baseUrl: 'https://api.pathao.com', message: 'Ready via Pathao Courier API' },
   ];
 }
 

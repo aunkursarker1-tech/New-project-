@@ -1,6 +1,6 @@
 import { CourierShipmentRequest, CourierShipmentResponse, CourierTrackingResponse, CourierHealthStatus, CourierPartner } from './types.js';
 import { createSteadfastShipment, getSteadfastTracking, getSteadfastBaseUrl } from './steadfast.js';
-import { createPathaoShipment, getPathaoTracking } from './pathao.js';
+import { createPathaoShipment, getPathaoTracking, getPathaoBaseUrl } from './pathao.js';
 
 // In-memory shipment registry for tracking lookup by orderId or tracking code
 const shipmentRegistry = new Map<string, { request: CourierShipmentRequest; response: CourierShipmentResponse; createdAt: string }>();
@@ -77,7 +77,7 @@ export function getHealthStatus(): CourierHealthStatus[] {
       courier: 'Pathao Courier',
       configured: Boolean(process.env.PATHAO_CLIENT_ID && process.env.PATHAO_CLIENT_SECRET),
       active: true,
-      baseUrl: process.env.PATHAO_BASE_URL || 'https://api-hermes.pathao.com',
+      baseUrl: getPathaoBaseUrl(),
       message: process.env.PATHAO_CLIENT_ID ? 'Pathao Client ID loaded. OAuth dispatch active.' : 'Configured via environment / database settings.',
     },
   ];

@@ -102,7 +102,10 @@ courierRouter.post('/test-connection', async (req, res) => {
         message: result.message,
         provider: 'Pathao',
         status: result.success ? 'Connected' : 'Failed',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        baseUrl: result.baseUrl,
+        tokenEndpoint: result.tokenEndpoint,
+        httpStatus: result.httpStatus,
       });
     } else {
       return res.status(400).json({
