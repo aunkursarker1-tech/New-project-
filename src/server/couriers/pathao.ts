@@ -588,6 +588,224 @@ export function resolveCodAmount(req: any): {
   };
 }
 
+export interface PathaoCity {
+  city_id: number;
+  city_name: string;
+}
+
+export interface PathaoZone {
+  zone_id: number;
+  zone_name: string;
+}
+
+const STATIC_CITIES_FALLBACK: PathaoCity[] = [
+  { city_id: 1, city_name: 'Dhaka' },
+  { city_id: 2, city_name: 'Chittagong' },
+  { city_id: 3, city_name: 'Sylhet' },
+  { city_id: 4, city_name: 'Khulna' },
+  { city_id: 5, city_name: 'Rajshahi' },
+  { city_id: 6, city_name: 'Rangpur' },
+  { city_id: 7, city_name: 'Barisal' },
+  { city_id: 8, city_name: 'Mymensingh' }
+];
+
+const STATIC_ZONES_FALLBACK: Record<number, PathaoZone[]> = {
+  1: [ // Dhaka zones (includes Gulshan, Dhanmondi, etc.)
+    { zone_id: 1, zone_name: 'Gulshan' },
+    { zone_id: 2, zone_name: 'Banani' },
+    { zone_id: 3, zone_name: 'Dhanmondi' },
+    { zone_id: 4, zone_name: 'Mirpur' },
+    { zone_id: 5, zone_name: 'Uttara' },
+    { zone_id: 6, zone_name: 'Mohammadpur' },
+    { zone_id: 7, zone_name: 'Tejgaon' },
+    { zone_id: 8, zone_name: 'Badda' },
+    { zone_id: 9, zone_name: 'Khilgaon' },
+    { zone_id: 10, zone_name: 'Rampura' },
+    { zone_id: 11, zone_name: 'Jatrabari' },
+    { zone_id: 12, zone_name: 'Lalbagh' },
+    { zone_id: 13, zone_name: 'Shahbagh' },
+    { zone_id: 14, zone_name: 'Ramna' },
+    { zone_id: 15, zone_name: 'Motijheel' },
+    { zone_id: 16, zone_name: 'Savar' },
+    { zone_id: 17, zone_name: 'Keraniganj' },
+    { zone_id: 18, zone_name: 'Tonghi' },
+    { zone_id: 19, zone_name: 'Demra' },
+    { zone_id: 20, zone_name: 'Cantonment' },
+    { zone_id: 21, zone_name: 'Kafrul' },
+    { zone_id: 22, zone_name: 'Pallabi' },
+    { zone_id: 23, zone_name: 'Adabor' },
+    { zone_id: 24, zone_name: 'Sher-e-Bangla Nagar' }
+  ],
+  2: [ // Chittagong zones
+    { zone_id: 30, zone_name: 'Panchlaish' },
+    { zone_id: 31, zone_name: 'Double Mooring' },
+    { zone_id: 32, zone_name: 'Kotwali' },
+    { zone_id: 33, zone_name: 'Halishahar' },
+    { zone_id: 34, zone_name: 'Chawkbazar' },
+    { zone_id: 35, zone_name: 'Nasirabad' },
+    { zone_id: 36, zone_name: 'Khulshi' },
+    { zone_id: 37, zone_name: 'Patenga' },
+    { zone_id: 38, zone_name: 'Agrabad' },
+    { zone_id: 39, zone_name: 'Pahartali' },
+    { zone_id: 40, zone_name: 'Bakalia' },
+    { zone_id: 41, zone_name: 'Chandgaon' }
+  ]
+};
+
+let cachedCities: PathaoCity[] | null = null;
+export async function getPathaoCities(): Promise<PathaoCity[]> {
+  if (cachedCities && cachedCities.length > 0) return cachedCities;
+  const token = await getPathaoAccessToken();
+  if (!token) {
+    console.warn('[Pathao API] No OAuth token. Falling back to static cities list.');
+    return STATIC_CITIES_FALLBACK;
+  }
+  const baseUrl = getPathaoBaseUrl();
+  const url = `${baseUrl}/aladdin/api/v1/city-list`;
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      console.error(`[Pathao API] Failed to fetch cities: ${res.status}. Falling back to static list.`);
+      return STATIC_CITIES_FALLBACK;
+    }
+    const json = await res.json();
+    const list = json?.data?.data || json?.data || [];
+    if (Array.isArray(list) && list.length > 0) {
+      cachedCities = list.map((item: any) => ({
+        city_id: Number(item.city_id),
+        city_name: String(item.city_name)
+      }));
+      return cachedCities;
+    }
+  } catch (err) {
+    console.error('[Pathao API Exception] getPathaoCities:', err);
+  }
+  return STATIC_CITIES_FALLBACK;
+}
+
+const cachedZonesMap = new Map<number, PathaoZone[]>();
+export async function getPathaoZones(cityId: number): Promise<PathaoZone[]> {
+  if (cachedZonesMap.has(cityId)) return cachedZonesMap.get(cityId)!;
+  const token = await getPathaoAccessToken();
+  if (!token) {
+    console.warn(`[Pathao API] No OAuth token. Falling back to static zones list for city ${cityId}.`);
+    return STATIC_ZONES_FALLBACK[cityId] || [];
+  }
+  const baseUrl = getPathaoBaseUrl();
+  const url = `${baseUrl}/aladdin/api/v1/cities/${cityId}/zone-list`;
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    if (!res.ok) {
+      console.error(`[Pathao API] Failed to fetch zones for city ${cityId}: ${res.status}. Falling back to static list.`);
+      return STATIC_ZONES_FALLBACK[cityId] || [];
+    }
+    const json = await res.json();
+    const list = json?.data?.data || json?.data || [];
+    if (Array.isArray(list) && list.length > 0) {
+      const zones = list.map((item: any) => ({
+        zone_id: Number(item.zone_id),
+        zone_name: String(item.zone_name)
+      }));
+      cachedZonesMap.set(cityId, zones);
+      return zones;
+    }
+  } catch (err) {
+    console.error(`[Pathao API Exception] getPathaoZones for city ${cityId}:`, err);
+  }
+  return STATIC_ZONES_FALLBACK[cityId] || [];
+}
+
+export async function resolvePathaoLocation(
+  district: string,
+  thana: string
+): Promise<{ cityId: number; cityName: string; zoneId: number; zoneName: string } | null> {
+  const normalizedDistrict = (district || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  const normalizedThana = (thana || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  if (!normalizedDistrict || !normalizedThana) {
+    console.warn(`[Pathao Location Resolver] Missing district or thana for resolution. district: "${district}", thana: "${thana}"`);
+    return null;
+  }
+
+  const cities = await getPathaoCities();
+  if (!cities || cities.length === 0) {
+    console.error('[Pathao Location Resolver] Failed to obtain any Pathao cities.');
+    return null;
+  }
+
+  // Find matching city
+  let matchedCity: PathaoCity | null = null;
+  
+  // Try exact normalized match first
+  matchedCity = cities.find(c => c.city_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedDistrict) || null;
+
+  // Fallbacks/aliases for common cities in Bangladesh
+  if (!matchedCity) {
+    if (normalizedDistrict.includes('dhaka')) {
+      matchedCity = cities.find(c => c.city_name.toLowerCase().includes('dhaka')) || null;
+    } else if (normalizedDistrict.includes('chittagong') || normalizedDistrict.includes('chattogram')) {
+      matchedCity = cities.find(c => c.city_name.toLowerCase().includes('chittagong') || c.city_name.toLowerCase().includes('chattogram')) || null;
+    } else {
+      // Try substring match
+      matchedCity = cities.find(c => c.city_name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(normalizedDistrict) || normalizedDistrict.includes(c.city_name.toLowerCase().replace(/[^a-z0-9]/g, ''))) || null;
+    }
+  }
+
+  if (!matchedCity) {
+    console.warn(`[Pathao Location Resolver] Could not match district "${district}" to any Pathao city.`);
+    return null;
+  }
+
+  // Fetch zones for matched city
+  const zones = await getPathaoZones(matchedCity.city_id);
+  if (!zones || zones.length === 0) {
+    console.error(`[Pathao Location Resolver] Failed to obtain zones list for city ${matchedCity.city_name} (${matchedCity.city_id})`);
+    return null;
+  }
+
+  // Find matching zone
+  let matchedZone: PathaoZone | null = null;
+
+  // Try exact normalized match first
+  matchedZone = zones.find(z => z.zone_name.toLowerCase().replace(/[^a-z0-9]/g, '') === normalizedThana) || null;
+
+  // Substring or contain matches
+  if (!matchedZone) {
+    matchedZone = zones.find(z => {
+      const normalizedZoneName = z.zone_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return normalizedZoneName.includes(normalizedThana) || normalizedThana.includes(normalizedZoneName);
+    }) || null;
+  }
+
+  if (!matchedZone) {
+    console.warn(`[Pathao Location Resolver] Could not match thana "${thana}" to any Pathao zone in city "${matchedCity.city_name}".`);
+    return null;
+  }
+
+  console.log(`[Pathao Location Resolver] Successfully resolved "${district}, ${thana}" to City: ${matchedCity.city_name} (${matchedCity.city_id}), Zone: ${matchedZone.zone_name} (${matchedZone.zone_id})`);
+
+  return {
+    cityId: matchedCity.city_id,
+    cityName: matchedCity.city_name,
+    zoneId: matchedZone.zone_id,
+    zoneName: matchedZone.zone_name
+  };
+}
+
 export async function createPathaoShipment(req: CourierShipmentRequest): Promise<CourierShipmentResponse> {
   const creds = await getPathaoCredentials();
   const baseUrl = getPathaoBaseUrl();
@@ -659,14 +877,6 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
   const district = req.district || req.order?.shippingAddress?.district || '';
   const storeId = creds?.store_id || '';
 
-  const isDhaka = district.toLowerCase().includes('dhaka');
-  const recipientCity = req.recipientCity ?? (isDhaka ? 1 : 2);
-  const recipientZone = req.recipientZone ?? (isDhaka ? 1 : 20);
-  const deliveryType = req.deliveryType ?? (isDhaka ? 48 : 12);
-  const itemType = req.itemType ?? 2;
-  const itemQuantity = req.itemQuantity ?? 1;
-  const itemWeight = req.itemWeightKg ?? 0.5;
-
   if (!storeId) {
     const err = 'Pathao Validation Error: Missing store_id';
     console.error(`[Pathao Validation Error] ${err}`);
@@ -692,21 +902,44 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     console.error(`[Pathao Validation Error] ${err}`);
     return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
   }
-  if (typeof recipientCity !== 'number' || recipientCity <= 0) {
-    const err = `Pathao Validation Error: recipient_city must be a positive integer, received: ${recipientCity}`;
-    console.error(`[Pathao Validation Error] ${err}`);
-    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+
+  // Dynamic Pathao Location Mapping
+  const resolvedLoc = await resolvePathaoLocation(district, thana);
+  if (!resolvedLoc) {
+    const errorMsg = "Could not determine a valid Pathao zone for this recipient location";
+    console.error(`[Pathao Validation Error] PATHAO_LOCATION_MAPPING_FAILED: ${errorMsg} (district: "${district}", thana: "${thana}")`);
+    return {
+      success: false,
+      courierName: 'Pathao Courier',
+      trackingNumber: '',
+      consignmentId: '',
+      status: 'Failed',
+      deliveryFee: 0,
+      estimatedDeliveryDays: 'N/A',
+      message: errorMsg,
+      errorDetails: 'PATHAO_LOCATION_MAPPING_FAILED',
+      isMockFallback: false,
+    };
   }
-  if (typeof recipientZone !== 'number' || recipientZone <= 0) {
-    const err = `Pathao Validation Error: recipient_zone must be a positive integer, received: ${recipientZone}`;
-    console.error(`[Pathao Validation Error] ${err}`);
-    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+
+  const recipientCity = resolvedLoc.cityId;
+  const recipientZone = resolvedLoc.zoneId;
+  const deliveryType = recipientCity === 1 ? 48 : 12;
+
+  const itemType = req.itemType ?? 2;
+  const itemQuantity = req.itemQuantity ?? 1;
+  const itemWeight = req.itemWeightKg ?? 0.5;
+
+  // Programmatic Preflight Assertion: Ensure zone belongs to city
+  const cityZones = await getPathaoZones(recipientCity);
+  const zoneBelongsToCity = cityZones.some(z => z.zone_id === recipientZone);
+
+  if (!zoneBelongsToCity) {
+    throw new Error(
+      `Invalid Pathao location mapping: zone ${recipientZone} does not belong to city ${recipientCity}`
+    );
   }
-  if (typeof deliveryType !== 'number' || deliveryType <= 0) {
-    const err = `Pathao Validation Error: delivery_type must be a positive integer, received: ${deliveryType}`;
-    console.error(`[Pathao Validation Error] ${err}`);
-    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
-  }
+
   if (typeof itemQuantity !== 'number' || itemQuantity <= 0) {
     const err = `Pathao Validation Error: item_quantity must be a positive integer, received: ${itemQuantity}`;
     console.error(`[Pathao Validation Error] ${err}`);

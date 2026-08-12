@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { createShipment, getTrackingInfo, getHealthStatus, autoSelectCourier } from './couriers/courierService.js';
 import { testSteadfastConnection } from './couriers/steadfast.js';
-import { testPathaoConnection, resolveCodAmount } from './couriers/pathao.js';
+import { testPathaoConnection, resolveCodAmount, resolvePathaoLocation, getPathaoZones } from './couriers/pathao.js';
 import { CourierShipmentRequest, CourierPartner } from './couriers/types.js';
 import { getSupabaseServerClient, cleanString } from './supabaseServer.js';
 import { getStoredCourierSettings, setStoredCourierSettings, getAllStoredCourierSettings } from './courierSettingsStore.js';
@@ -423,7 +423,7 @@ courierRouter.post('/test-cod-resolution', (req, res) => {
 });
 
 // 8.6 Production Order Diagnostic Endpoint
-courierRouter.post('/order-diagnostic', (req, res) => {
+courierRouter.post('/order-diagnostic', async (req, res) => {
   try {
     const { order } = req.body;
     if (!order) {
@@ -434,6 +434,30 @@ courierRouter.post('/order-diagnostic', (req, res) => {
     const apiTotal = order.total ?? 0;
     const apiCodAmount = order.codAmount ?? (order.paymentMethod === 'COD' ? apiTotal : 0);
 
+    const district = order.shippingAddress?.district || '';
+    const thana = order.shippingAddress?.thana || '';
+    const resolvedLoc = await resolvePathaoLocation(district, thana);
+
+    let pathaoCityId = 0;
+    let pathaoCityName = 'N/A';
+    let pathaoZoneId = 0;
+    let pathaoZoneName = 'N/A';
+    let zoneBelongsToCity = false;
+    let deliveryType = 0;
+    let preflightValid = false;
+
+    if (resolvedLoc) {
+      pathaoCityId = resolvedLoc.cityId;
+      pathaoCityName = resolvedLoc.cityName;
+      pathaoZoneId = resolvedLoc.zoneId;
+      pathaoZoneName = resolvedLoc.zoneName;
+      deliveryType = pathaoCityId === 1 ? 48 : 12;
+
+      const cityZones = await getPathaoZones(pathaoCityId);
+      zoneBelongsToCity = cityZones.some(z => z.zone_id === pathaoZoneId);
+      preflightValid = zoneBelongsToCity;
+    }
+
     res.json({
       success: true,
       diagnostic: {
@@ -443,7 +467,17 @@ courierRouter.post('/order-diagnostic', (req, res) => {
         databaseCodAmount: dbCodAmount,
         apiResponseTotal: apiTotal,
         apiResponseCodAmount: apiCodAmount,
-        environment: process.env.NODE_ENV || 'development'
+        environment: process.env.NODE_ENV || 'development',
+        recipientAddress: order.shippingAddress?.fullAddress || '',
+        recipientDistrict: district,
+        recipientThana: thana,
+        pathaoCityId,
+        pathaoCityName,
+        pathaoZoneId,
+        pathaoZoneName,
+        zoneBelongsToCity,
+        deliveryType,
+        preflightValid
       }
     });
   } catch (err: any) {
