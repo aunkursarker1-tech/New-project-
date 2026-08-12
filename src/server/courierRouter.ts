@@ -343,7 +343,22 @@ courierRouter.post('/create-shipment', async (req, res) => {
     if (!order || !order.id || !order.shippingAddress) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid request: order details with shippingAddress are required.',
+        message: 'Cannot create courier shipment: order does not exist in production database.',
+      });
+    }
+
+    const orderIdStr = String(order.id).toUpperCase();
+    if (orderIdStr.includes('VERIFY') || orderIdStr.includes('TEST') || orderIdStr.includes('MOCK') || orderIdStr.includes('DUMMY') || orderIdStr.startsWith('ORD-LIVE-')) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot create courier shipment: synthetic, test, or verification order ID (${order.id}) is blocked in production.`,
+      });
+    }
+
+    if (!order.total || order.total <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create courier shipment: order total must be a positive number.',
       });
     }
 
@@ -470,8 +485,26 @@ courierRouter.post('/track', async (req, res) => {
 courierRouter.post('/auto-ship', async (req, res) => {
   try {
     const { order } = req.body;
-    if (!order) {
-      return res.status(400).json({ success: false, message: 'Order object required' });
+    if (!order || !order.id || !order.shippingAddress) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create courier shipment: order does not exist in production database.',
+      });
+    }
+
+    const orderIdStr = String(order.id).toUpperCase();
+    if (orderIdStr.includes('VERIFY') || orderIdStr.includes('TEST') || orderIdStr.includes('MOCK') || orderIdStr.includes('DUMMY') || orderIdStr.startsWith('ORD-LIVE-')) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot create courier shipment: synthetic, test, or verification order ID (${order.id}) is blocked in production.`,
+      });
+    }
+
+    if (!order.total || order.total <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create courier shipment: order total must be a positive number.',
+      });
     }
 
     const selectedCourier = (order.courierName as CourierPartner) || autoSelectCourier(order.shippingAddress?.district || 'Dhaka');
