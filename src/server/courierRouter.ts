@@ -75,7 +75,62 @@ courierRouter.post('/settings', (req, res) => {
   }
 });
 
-// 4. Test Connection API Endpoint
+// 4. Test Connection API Endpoints
+
+// GET /api/courier/pathao/test
+courierRouter.get('/pathao/test', async (req, res) => {
+  try {
+    const result = await testPathaoConnection();
+    return res.status(result.success ? 200 : (result.httpStatus || 401)).json(result);
+  } catch (error: any) {
+    console.error('[Pathao Test Route Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Pathao connection test failed'
+    });
+  }
+});
+
+courierRouter.post('/pathao/test', async (req, res) => {
+  try {
+    const result = await testPathaoConnection();
+    return res.status(result.success ? 200 : (result.httpStatus || 401)).json(result);
+  } catch (error: any) {
+    console.error('[Pathao Test Route Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Pathao connection test failed'
+    });
+  }
+});
+
+// GET /api/courier/steadfast/test
+courierRouter.get('/steadfast/test', async (req, res) => {
+  try {
+    const result = await testSteadfastConnection();
+    return res.status(result.success ? 200 : (result.status || 401)).json(result);
+  } catch (error: any) {
+    console.error('[Steadfast Test Route Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Steadfast connection test failed'
+    });
+  }
+});
+
+courierRouter.post('/steadfast/test', async (req, res) => {
+  try {
+    const result = await testSteadfastConnection();
+    return res.status(result.success ? 200 : (result.status || 401)).json(result);
+  } catch (error: any) {
+    console.error('[Steadfast Test Route Error]', error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || 'Steadfast connection test failed'
+    });
+  }
+});
+
 courierRouter.post('/test-connection', async (req, res) => {
   const { provider } = req.body;
   console.log(`[Courier Test Connection] Running real API test for provider: ${provider}`);
