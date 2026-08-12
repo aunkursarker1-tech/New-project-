@@ -349,6 +349,19 @@ courierRouter.post('/create-shipment', async (req, res) => {
 
     const resolvedCod = codAmount ?? amount_to_collect ?? cod_amount ?? order.total ?? 0;
 
+    const shipmentDiagnostic = {
+      orderId: order.id,
+      paymentMethod: order.paymentMethod,
+      subtotal: order.subtotal || 0,
+      shippingFee: order.shippingFee || 0,
+      discount: order.discountAmount || 0,
+      tax: order.tax || 0,
+      checkoutTotal: order.total || 0,
+      orderTotal: order.total || 0,
+      resolvedCodAmount: resolvedCod,
+    };
+    console.log('[Courier Shipment Diagnostic]', shipmentDiagnostic);
+
     const shipmentReq: CourierShipmentRequest = {
       orderId: order.id,
       recipientName: order.shippingAddress.fullName || 'Customer',
@@ -432,7 +445,20 @@ courierRouter.post('/auto-ship', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Order object required' });
     }
 
-    const selectedCourier = autoSelectCourier(order.shippingAddress?.district || 'Dhaka');
+    const selectedCourier = (order.courierName as CourierPartner) || autoSelectCourier(order.shippingAddress?.district || 'Dhaka');
+    
+    const shipmentDiagnostic = {
+      orderId: order.id,
+      paymentMethod: order.paymentMethod,
+      subtotal: order.subtotal || 0,
+      shippingFee: order.shippingFee || 0,
+      discount: order.discountAmount || 0,
+      tax: order.tax || 0,
+      checkoutTotal: order.total || 0,
+      orderTotal: order.total || 0,
+      resolvedCodAmount: order.total ?? 0,
+    };
+    console.log('[Courier AutoShip Diagnostic]', shipmentDiagnostic);
     
     const shipmentReq: CourierShipmentRequest = {
       orderId: order.id,

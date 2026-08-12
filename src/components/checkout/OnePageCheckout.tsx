@@ -288,7 +288,7 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
   const isValidAddress = fullAddress.trim().length >= 8;
 
   // Submit Order Handler
-  const handlePlaceOrder = (e?: React.FormEvent) => {
+  const handlePlaceOrder = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
     if (!isValidName) {
@@ -336,6 +336,25 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
 
     const fraudResult = evaluateOrderFraudRisk(tempOrder);
 
+    const diagnosticPayload = {
+      orderId,
+      paymentMethod,
+      subtotal,
+      shippingFee: finalShippingFee,
+      discount: discountAmount,
+      tax: 0,
+      checkoutTotal: grandTotal,
+      orderTotal: grandTotal,
+      resolvedCodAmount: paymentMethod === 'COD' ? grandTotal : 0,
+    };
+    console.log('[Checkout Order Diagnostic]', diagnosticPayload);
+
+    if (paymentMethod === 'COD' && (!grandTotal || grandTotal <= 0)) {
+      setValidationError('Cash on Delivery order requires a valid positive total amount.');
+      setIsSubmitting(false);
+      return;
+    }
+
     const newOrder: Order = {
       id: orderId,
       items,
@@ -364,17 +383,18 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
     };
 
     // Trigger automatic courier shipment creation via Bangladeshi Courier APIs
-    autoShipOrder(newOrder).then((shipment) => {
+    try {
+      const shipment = await autoShipOrder(newOrder);
       if (shipment && shipment.trackingNumber) {
         newOrder.courierTrackingNumber = shipment.trackingNumber;
         newOrder.courierName = shipment.courierName;
       }
-    }).catch(console.error);
-
-    setTimeout(() => {
+    } catch (err) {
+      console.error('[AutoShip Error during Checkout]', err);
+    } finally {
       setIsSubmitting(false);
       onOrderPlaced(newOrder);
-    }, 600);
+    }
   };
 
   return (
