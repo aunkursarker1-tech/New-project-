@@ -791,6 +791,37 @@ export const INITIAL_ORDERS: Order[] = [
     courierTrackingNumber: 'PTH-CTG-44120',
     courierName: 'Pathao Courier',
   },
+  {
+    id: 'GDB-21444',
+    items: [
+      {
+        product: INITIAL_PRODUCTS[1],
+        quantity: 1,
+        selectedColor: 'Stealth Black',
+      },
+    ],
+    subtotal: 5500,
+    shippingFee: 60,
+    discountAmount: 0,
+    total: 5560,
+    codAmount: 5560,
+    paymentMethod: 'COD',
+    paymentStatus: 'Pending',
+    shippingAddress: {
+      fullName: 'Tanvir Ahmed',
+      phone: '01911223344',
+      email: 'tanvir.ahmed@gmail.com',
+      division: 'Dhaka',
+      district: 'Dhaka',
+      thana: 'Gulshan',
+      fullAddress: 'Gulshan Avenue, Road 11, Dhaka',
+    },
+    status: 'Processing',
+    createdAt: '2026-08-10T11:00:00Z',
+    estimatedDelivery: '2026-08-12',
+    courierTrackingNumber: 'PTH-BD-21444',
+    courierName: 'Pathao Courier',
+  },
 ];
 
 export const INITIAL_CUSTOMERS: Customer[] = [

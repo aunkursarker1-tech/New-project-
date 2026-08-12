@@ -19,6 +19,11 @@ export interface CourierShipmentRequest {
   itemWeightKg?: number;
   specialInstruction?: string;
   courierName?: CourierPartner;
+  recipientCity?: number;
+  recipientZone?: number;
+  deliveryType?: number;
+  itemType?: number;
+  itemQuantity?: number;
 }
 
 export interface CourierShipmentResponse {

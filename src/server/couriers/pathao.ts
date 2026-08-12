@@ -652,27 +652,107 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
     };
   }
 
-  const recipientName = req.recipientName || req.order?.shippingAddress?.fullName || 'Customer';
-  const recipientPhone = req.recipientPhone || req.order?.shippingAddress?.phone || '01700000000';
-  const rawAddress = req.address || req.order?.shippingAddress?.fullAddress || 'Dhaka';
+  const recipientName = req.recipientName || req.order?.shippingAddress?.fullName || '';
+  const recipientPhone = req.recipientPhone || req.order?.shippingAddress?.phone || '';
+  const rawAddress = req.address || req.order?.shippingAddress?.fullAddress || '';
   const thana = req.thana || req.order?.shippingAddress?.thana || '';
-  const district = req.district || req.order?.shippingAddress?.district || 'Dhaka';
+  const district = req.district || req.order?.shippingAddress?.district || '';
+  const storeId = creds?.store_id || '';
+
+  const isDhaka = district.toLowerCase().includes('dhaka');
+  const recipientCity = req.recipientCity ?? (isDhaka ? 1 : 2);
+  const recipientZone = req.recipientZone ?? (isDhaka ? 1 : 20);
+  const deliveryType = req.deliveryType ?? (isDhaka ? 48 : 12);
+  const itemType = req.itemType ?? 2;
+  const itemQuantity = req.itemQuantity ?? 1;
+  const itemWeight = req.itemWeightKg ?? 0.5;
+
+  if (!storeId) {
+    const err = 'Pathao Validation Error: Missing store_id';
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (!orderId || orderId === 'N/A') {
+    const err = 'Pathao Validation Error: Missing merchant_order_id';
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (!recipientName.trim()) {
+    const err = 'Pathao Validation Error: recipient_name is required and cannot be empty';
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (!recipientPhone.trim()) {
+    const err = 'Pathao Validation Error: recipient_phone is required and cannot be empty';
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (!rawAddress.trim()) {
+    const err = 'Pathao Validation Error: recipient_address is required and cannot be empty';
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (typeof recipientCity !== 'number' || recipientCity <= 0) {
+    const err = `Pathao Validation Error: recipient_city must be a positive integer, received: ${recipientCity}`;
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (typeof recipientZone !== 'number' || recipientZone <= 0) {
+    const err = `Pathao Validation Error: recipient_zone must be a positive integer, received: ${recipientZone}`;
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (typeof deliveryType !== 'number' || deliveryType <= 0) {
+    const err = `Pathao Validation Error: delivery_type must be a positive integer, received: ${deliveryType}`;
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (typeof itemQuantity !== 'number' || itemQuantity <= 0) {
+    const err = `Pathao Validation Error: item_quantity must be a positive integer, received: ${itemQuantity}`;
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
+  if (typeof itemWeight !== 'number' || itemWeight <= 0) {
+    const err = `Pathao Validation Error: item_weight must be a positive number, received: ${itemWeight}`;
+    console.error(`[Pathao Validation Error] ${err}`);
+    return { success: false, courierName: 'Pathao Courier', trackingNumber: '', consignmentId: '', status: 'Failed', deliveryFee: 0, estimatedDeliveryDays: 'N/A', message: err, errorDetails: err, isMockFallback: false };
+  }
 
   const payload = {
-    store_id: creds?.store_id || 'pth_store_dhanmondi_01',
+    store_id: storeId,
     merchant_order_id: orderId,
     recipient_name: recipientName,
     recipient_phone: recipientPhone,
     recipient_address: `${rawAddress}, ${thana}, ${district}`.replace(/,\s*,/g, ',').replace(/^,\s*|\s*,\s*$/g, ''),
-    recipient_city: district.toLowerCase().includes('dhaka') ? 1 : 2,
-    recipient_zone: 1,
-    delivery_type: district.toLowerCase().includes('dhaka') ? 48 : 12,
-    item_type: 2,
+    recipient_city: recipientCity,
+    recipient_zone: recipientZone,
+    delivery_type: deliveryType,
+    item_type: itemType,
     special_instruction: req.specialInstruction || req.order?.shippingAddress?.notes || 'Handle with care - E-commerce order',
-    item_quantity: 1,
-    item_weight: req.itemWeightKg || 0.5,
+    item_quantity: itemQuantity,
+    item_weight: itemWeight,
     amount_to_collect: codRes.finalAmountToCollect,
   };
+
+  const safeDiagnosticPayload = {
+    orderId,
+    store_id: payload.store_id,
+    merchant_order_id: payload.merchant_order_id,
+    recipient_name: payload.recipient_name,
+    recipient_phone: payload.recipient_phone,
+    recipient_address: payload.recipient_address,
+    recipient_city: payload.recipient_city,
+    recipient_zone: payload.recipient_zone,
+    delivery_type: payload.delivery_type,
+    item_type: payload.item_type,
+    special_instruction: payload.special_instruction,
+    item_quantity: payload.item_quantity,
+    item_weight: payload.item_weight,
+    amount_to_collect: payload.amount_to_collect,
+  };
+
+  console.log('[Pathao Safe Diagnostic Payload Before Request]', safeDiagnosticPayload);
+  await logDiagnostic('SHIPMENT_ATTEMPT', orderEndpoint, safeDiagnosticPayload, null, 0, null);
 
   console.log('[Pathao Shipment Request Body] POST', orderEndpoint, payload);
 
@@ -708,7 +788,7 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
       const consignmentId = data.data.consignment_id || `PTH-C-${Math.floor(100000 + Math.random() * 900000)}`;
       const trackingNumber = data.data.tracking_code || consignmentId;
 
-      await logDiagnostic('SHIPMENT_SUCCESS', orderEndpoint, payload, { ...data, cod_audit: codDiagnostic, cod_accepted: codAccepted }, res.status, null);
+      await logDiagnostic('SHIPMENT_SUCCESS', orderEndpoint, safeDiagnosticPayload, { ...data, cod_audit: codDiagnostic, cod_accepted: codAccepted }, res.status, null);
 
       return {
         success: true,
@@ -723,10 +803,17 @@ export async function createPathaoShipment(req: CourierShipmentRequest): Promise
         isMockFallback: false,
       };
     } else {
-      const exactError = data.message || (data.errors ? (typeof data.errors === 'string' ? data.errors : JSON.stringify(data.errors)) : null) || JSON.stringify(data) || `Pathao API error HTTP ${res.status}`;
+      const errorMessage = data.message || 'Please fix the given errors';
+      const errorDetailsObj = data.errors || data.error || data;
+      const exactErrorObj = {
+        message: errorMessage,
+        errors: errorDetailsObj
+      };
+      const exactError = JSON.stringify(exactErrorObj, null, 2);
+
       console.error(`[Pathao API Error] ${exactError}`);
 
-      await logDiagnostic('SHIPMENT_API_ERROR', orderEndpoint, payload, { ...data, cod_audit: codDiagnostic }, res.status, exactError);
+      await logDiagnostic('SHIPMENT_API_ERROR', orderEndpoint, safeDiagnosticPayload, { ...data, cod_audit: codDiagnostic }, res.status, exactError);
 
       return {
         success: false,

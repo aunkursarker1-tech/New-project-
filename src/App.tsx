@@ -66,7 +66,11 @@ export default function App() {
 
   const [orders, setOrders] = useState<Order[]>(() => {
     const saved = localStorage.getItem('gadgetghor_orders');
-    const baseOrders = saved ? JSON.parse(saved) : INITIAL_ORDERS;
+    let baseOrders = saved ? JSON.parse(saved) : INITIAL_ORDERS;
+    if (!baseOrders.some((o: Order) => o.id === 'GDB-21444')) {
+      const gdbOrder = INITIAL_ORDERS.find(o => o.id === 'GDB-21444');
+      if (gdbOrder) baseOrders = [gdbOrder, ...baseOrders];
+    }
     return populateOrdersWithFraudRisk(baseOrders, INITIAL_BLACKLISTS, INITIAL_WHITELISTS);
   });
 

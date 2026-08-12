@@ -349,6 +349,19 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
     };
     console.log('[Checkout Order Diagnostic]', diagnosticPayload);
 
+    const preInsertionLog = {
+      orderId,
+      paymentMethod,
+      subtotal,
+      shippingFee: finalShippingFee,
+      discountAmount,
+      tax: 0,
+      grandTotal,
+      payloadTotal: grandTotal,
+      payloadCodAmount: paymentMethod === 'COD' ? grandTotal : 0,
+    };
+    console.log('[Order Pre-Insertion Diagnostic]', preInsertionLog);
+
     if (paymentMethod === 'COD' && (!grandTotal || grandTotal <= 0)) {
       setValidationError('Cash on Delivery order requires a valid positive total amount.');
       setIsSubmitting(false);
@@ -382,6 +395,14 @@ export const OnePageCheckout: React.FC<OnePageCheckoutProps> = ({
       previousDeliverySuccessRate: fraudResult.deliverySuccessRate,
       pastOrderCount: fraudResult.pastOrderCount,
     };
+
+    const postInsertionLog = {
+      orderId: newOrder.id,
+      paymentMethod: newOrder.paymentMethod,
+      databaseTotal: newOrder.total,
+      databaseCodAmount: newOrder.codAmount ?? (newOrder.paymentMethod === 'COD' ? newOrder.total : 0),
+    };
+    console.log('[Order Post-Insertion Diagnostic]', postInsertionLog);
 
     // Trigger automatic courier shipment creation via Bangladeshi Courier APIs
     try {
