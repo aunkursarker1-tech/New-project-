@@ -221,17 +221,27 @@ export async function saveCourierSettings(payload: {
   try {
     const { data: existingRows } = await supabase
       .from('courier_settings')
-      .select('id, provider')
+      .select('id, provider, updated_at')
       .ilike('provider', canonicalProvider);
 
     if (existingRows && existingRows.length > 0) {
-      const duplicateIds = existingRows
+      const nonCanonicalIds = existingRows
         .filter((r: any) => r.provider !== canonicalProvider)
         .map((r: any) => r.id);
 
-      if (duplicateIds.length > 0) {
-        console.log('[Supabase Courier Settings] Cleaning up non-canonical duplicate IDs:', duplicateIds);
-        await supabase.from('courier_settings').delete().in('id', duplicateIds);
+      if (nonCanonicalIds.length > 0) {
+        console.log('[Supabase Courier Settings] Cleaning up non-canonical duplicate IDs:', nonCanonicalIds);
+        await supabase.from('courier_settings').delete().in('id', nonCanonicalIds);
+      }
+
+      const canonicalRows = existingRows.filter((r: any) => r.provider === canonicalProvider);
+      if (canonicalRows.length > 1) {
+        canonicalRows.sort((a: any, b: any) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime());
+        const extraCanonicalIds = canonicalRows.slice(1).map((r: any) => r.id);
+        if (extraCanonicalIds.length > 0) {
+          console.log('[Supabase Courier Settings] Removing extra duplicate canonical rows:', extraCanonicalIds);
+          await supabase.from('courier_settings').delete().in('id', extraCanonicalIds);
+        }
       }
     }
   } catch (cleanErr) {

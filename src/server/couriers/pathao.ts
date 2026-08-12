@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSupabaseServerClient, cleanString } from '../supabaseServer.js';
 import { getStoredCourierSettings } from '../courierSettingsStore.js';
 
-const DEFAULT_BASE_URL = 'https://api-hermes.pathao.com';
+const DEFAULT_BASE_URL = 'https://api.pathao.com';
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -16,9 +16,6 @@ export function getPathaoBaseUrl(): string {
   }
   // Strip trailing /aladdin/api/v1 if included in PATHAO_BASE_URL env var
   url = url.replace(/\/aladdin\/api\/v1\/?$/i, '');
-  if (url === 'https://api.pathao.com') {
-    url = 'https://api-hermes.pathao.com';
-  }
   return url;
 }
 
@@ -155,19 +152,19 @@ export async function getPathaoCredentials() {
   // Check in-memory store (saved via Admin Panel)
   const memSettings = getStoredCourierSettings('Pathao');
   if (memSettings) {
-    if ((!rawClientId || credentialSource === 'Environment Variables') && memSettings.client_id) {
+    if (memSettings.client_id) {
       rawClientId = memSettings.client_id;
       credentialSource = 'Admin Panel Store';
     }
-    if ((!rawClientSecret || credentialSource === 'Environment Variables') && memSettings.client_secret) {
+    if (memSettings.client_secret) {
       rawClientSecret = memSettings.client_secret;
       credentialSource = 'Admin Panel Store';
     }
-    if ((!rawUsername || credentialSource === 'Environment Variables') && memSettings.username) {
+    if (memSettings.username) {
       rawUsername = memSettings.username;
       credentialSource = 'Admin Panel Store';
     }
-    if ((!rawPassword || credentialSource === 'Environment Variables') && memSettings.password) {
+    if (memSettings.password) {
       rawPassword = memSettings.password;
       credentialSource = 'Admin Panel Store';
     }
