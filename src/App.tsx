@@ -638,6 +638,7 @@ export default function App() {
               }}
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
+              logoUrl={settings.logoUrl}
               allProducts={products}
               onSelectProduct={(p) => setSelectedProductDetail(p)}
               onNavigateHome={() => {
@@ -669,6 +670,7 @@ export default function App() {
                           onQuickView={(p) => setSelectedProductDetail(p)}
                           onAddToCart={handleAddToCart}
                           onSelectCategory={(cat) => setSelectedCategory(cat)}
+                          banners={banners}
                         />
                       )}
 

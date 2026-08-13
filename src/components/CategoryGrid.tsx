@@ -145,7 +145,7 @@ export const CategoryGrid: React.FC<CategoryGridProps> = ({
 
   return (
     <section className="py-3 px-3 sm:px-4 max-w-7xl mx-auto">
-      {/* Headings exactly reflecting the clean aesthetic of electronicsbangladesh.com */}
+      {/* Headings exactly reflecting the clean aesthetic of electrohousebangladesh.com */}
       <div className="flex items-center justify-between mb-3">
         <div>
           <h2 className={`text-base sm:text-lg font-black ${darkMode ? 'text-white' : 'text-slate-900'} tracking-tight`}>

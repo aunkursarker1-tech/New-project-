@@ -220,6 +220,7 @@ export interface Banner {
   linkUrl?: string;
   active: boolean;
   order: number;
+  buttonText?: string;
 }
 
 export interface StoreSettings {

@@ -44,6 +44,7 @@ interface HeaderProps {
   onNavigateProducts: (tag?: string) => void;
   customerName?: string | null;
   onLogout?: () => void;
+  logoUrl?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -63,6 +64,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigateProducts,
   customerName,
   onLogout,
+  logoUrl,
 }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -165,13 +167,17 @@ export const Header: React.FC<HeaderProps> = ({
               onClick={onNavigateHome}
               className="flex items-center gap-2.5 group text-left"
             >
-              <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 select-none">
-                <ShoppingBag className="w-5 h-5 text-[#007A58]" />
+              <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 select-none overflow-hidden">
+                {logoUrl ? (
+                  <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                ) : (
+                  <ShoppingBag className="w-5 h-5 text-[#007A58]" />
+                )}
               </div>
               <div>
                 <div className="flex flex-col">
                   <span className="text-[17px] font-black leading-none tracking-tight text-white font-sans">
-                    Electronics
+                    ElectroHouse
                   </span>
                   <span className="text-[11px] font-medium leading-none tracking-wider text-white/95 mt-0.5">
                     Bangladesh

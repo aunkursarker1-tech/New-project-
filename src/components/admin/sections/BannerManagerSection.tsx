@@ -8,7 +8,8 @@ import {
   Eye,
   ArrowUp,
   ArrowDown,
-  X
+  X,
+  Upload
 } from 'lucide-react';
 import { Banner } from '../../../types';
 
@@ -37,6 +38,18 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
   const [linkUrl, setLinkUrl] = useState('/category/Gadgets');
   const [active, setActive] = useState(true);
   const [order, setOrder] = useState(1);
+  const [buttonText, setButtonText] = useState('');
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleOpenAdd = () => {
     setEditingBanner(null);
@@ -47,6 +60,7 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
     setLinkUrl('/category/Gadgets');
     setActive(true);
     setOrder(banners.length + 1);
+    setButtonText('Shop Now');
     setShowModal(true);
   };
 
@@ -59,6 +73,7 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
     setLinkUrl(b.linkUrl || '');
     setActive(b.active);
     setOrder(b.order);
+    setButtonText(b.buttonText || '');
     setShowModal(true);
   };
 
@@ -76,6 +91,7 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
         linkUrl,
         active,
         order: Number(order),
+        buttonText,
       });
     } else {
       onAddBanner({
@@ -87,6 +103,7 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
         linkUrl,
         active,
         order: Number(order),
+        buttonText,
       });
     }
 
@@ -191,7 +208,7 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
               </div>
 
               <div>
-                <label className="text-slate-400 block mb-1 font-bold">Sub-Headline Offer</label>
+                <label className="text-slate-400 block mb-1 font-bold">Sub-Headline Offer / Text</label>
                 <input
                   type="text"
                   value={subtitle}
@@ -200,8 +217,23 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
                 />
               </div>
 
+              <div className="space-y-1.5">
+                <label className="text-slate-400 block font-bold">Upload Banner Image</label>
+                <label className="flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-700 hover:border-emerald-500 rounded-2xl cursor-pointer bg-slate-950/40 transition-colors">
+                  <span className="text-slate-400 font-bold text-xs flex items-center gap-1.5">
+                    <Upload className="w-4 h-4 text-slate-400" /> Click to upload image file
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
               <div>
-                <label className="text-slate-400 block mb-1 font-bold">Image URL</label>
+                <label className="text-slate-400 block mb-1 font-bold">Or Direct Image URL</label>
                 <input
                   type="text"
                   required
@@ -219,8 +251,8 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
                     onChange={(e: any) => setType(e.target.value)}
                     className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-800 text-white font-bold outline-none"
                   >
-                    <option value="slider">Hero Carousel Slider</option>
-                    <option value="promo">Side Promo Card</option>
+                    <option value="slider">Hero Compact Banner</option>
+                    <option value="promo">Twin Promo Card / Strip</option>
                   </select>
                 </div>
 
@@ -235,14 +267,27 @@ export const BannerManagerSection: React.FC<BannerManagerSectionProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="text-slate-400 block mb-1 font-bold">Click Action Target URL</label>
-                <input
-                  type="text"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-800 text-white outline-none"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400 block mb-1 font-bold">Optional Button Text</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Shop Now"
+                    value={buttonText}
+                    onChange={(e) => setButtonText(e.target.value)}
+                    className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-800 text-white outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-slate-400 block mb-1 font-bold">Click Action Target URL</label>
+                  <input
+                    type="text"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    className="w-full p-3 rounded-2xl bg-slate-950 border border-slate-800 text-white outline-none"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center gap-2 pt-2">
