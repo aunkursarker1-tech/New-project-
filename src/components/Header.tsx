@@ -117,32 +117,29 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full shadow-sm border-b border-slate-200 dark:border-slate-800">
-      {/* Top Announcement Bar */}
-      <div className="bg-slate-900 text-slate-300 text-[11px] py-2 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-2">
-          <div className="flex items-center gap-4 flex-wrap justify-center sm:justify-start">
-            <span className="flex items-center gap-1.5 text-emerald-400 font-bold">
-              <Truck className="w-3.5 h-3.5" /> Free Dhaka Delivery on ৳2,000+
+      {/* Top Announcement Bar - Matching Screenshot */}
+      <div className="bg-[#0B0E1E] text-slate-300 text-[11px] py-1.5 px-3 md:py-2 md:px-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-1.5 md:gap-2">
+          {/* Left Block on Desktop: Delivery details */}
+          <div className="flex items-center justify-between md:justify-start gap-4 w-full md:w-auto">
+            <span className="flex items-center gap-1.5 text-[#FC4C56] font-extrabold text-[11px] sm:text-[12px] tracking-tight">
+              <Truck className="w-4 h-4 text-[#FC4C56] shrink-0" /> Free Dhaka Delivery on ৳2,000+
             </span>
-            <span className="hidden md:inline text-slate-700">|</span>
-            <span className="hidden md:flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-slate-500" /> Multiplan Center, Level 4, Dhaka
-            </span>
-            <span className="hidden sm:inline text-slate-700">|</span>
-            <span className="flex items-center gap-1 font-bold">
-              <Phone className="w-3.5 h-3.5 text-slate-400" /> +880 1700-000000
+            <span className="flex items-center gap-1.5 font-bold text-white text-[11px] sm:text-[12px]">
+              <Phone className="w-3.5 h-3.5 text-white/75 shrink-0" /> +880 1700-000000
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          {/* Right Block on Desktop: Track Order & BDT Badge */}
+          <div className="flex items-center justify-center md:justify-end gap-3 w-full md:w-auto">
             <Link
               to="/track-order"
-              className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+              className="flex items-center gap-1.5 text-white/90 hover:text-[#FC4C56] font-bold transition-colors text-[11px] sm:text-[11.5px]"
             >
-              <PackageCheck className="w-3.5 h-3.5" /> Track Order
+              <PackageCheck className="w-3.5 h-3.5 text-white/80 shrink-0" /> Track Order
             </Link>
-            <span className="text-slate-700">|</span>
-            <span className="px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-400 text-[10px] font-black tracking-wider">
+            <span className="text-white/20">|</span>
+            <span className="px-3 py-0.5 rounded bg-[#5C0612] text-[#FC4C56] text-[9.5px] sm:text-[10px] font-black tracking-wider uppercase shadow-inner">
               BDT ৳
             </span>
           </div>
@@ -150,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Main Bar */}
-      <div className={`${darkMode ? 'bg-slate-950 text-white' : 'bg-[#007A58] text-white'} py-2 px-4 transition-colors`}>
+      <div className={`${darkMode ? 'bg-slate-950 text-white' : 'bg-[#007A58] text-white'} py-2.5 px-4 transition-colors`}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           
           {/* Logo & Hamburguer */}
@@ -165,23 +162,55 @@ export const Header: React.FC<HeaderProps> = ({
             <Link
               to="/"
               onClick={onNavigateHome}
-              className="flex items-center gap-2.5 group text-left"
+              className="flex items-center gap-2 sm:gap-2.5 group text-left"
             >
-              <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-md shrink-0 select-none overflow-hidden">
+              {/* Circular Icon with Shopping bag and House (matching screenshot) */}
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-white flex items-center justify-center shadow-lg shrink-0 select-none overflow-hidden p-[2px]">
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="w-full h-full object-cover" />
                 ) : (
-                  <ShoppingBag className="w-5 h-5 text-[#007A58]" />
+                  <svg viewBox="0 0 100 100" className="w-full h-full text-[#007A58]" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    {/* Shopping bag handle */}
+                    <path d="M30 40 C 30 20, 70 20, 70 40" stroke="#007A58" strokeWidth="6" strokeLinecap="round" />
+                    {/* Shopping bag body / house contour */}
+                    <rect x="20" y="38" width="60" height="46" rx="8" fill="white" stroke="#007A58" strokeWidth="5.5" />
+                    {/* House roof silhouette */}
+                    <path d="M40 45 L50 37 L60 45" stroke="#EA384D" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+                    <rect x="56" y="39" width="3.5" height="5.5" fill="#EA384D" />
+                    {/* Stylized E */}
+                    <path d="M32 54 H42 M32 61 H40 M32 68 H42 M32 54 V68" stroke="#007A58" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Stylized H */}
+                    <path d="M52 54 V68 M64 54 V68 M52 61 H64" stroke="#EA384D" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Red window on H crossbar */}
+                    <rect x="56" y="56" width="4" height="4" fill="white" stroke="#EA384D" strokeWidth="1.2" />
+                  </svg>
                 )}
               </div>
-              <div>
-                <div className="flex flex-col">
-                  <span className="text-[17px] font-black leading-none tracking-tight text-white font-sans">
-                    ElectroHouse
+
+              {/* Separator line */}
+              <div className="h-9 w-[1.5px] bg-white/30 shrink-0 mx-0.5 sm:mx-1"></div>
+
+              {/* Custom Branded Text Logo (matching screenshot exactly) */}
+              <div className="flex flex-col select-none">
+                <div className="flex items-baseline font-sans font-black tracking-tight leading-none text-[19px] sm:text-[23px]">
+                  <span className="text-white">Electro</span>
+                  <span className="relative text-[#FC4C56] ml-0.5">
+                    {/* House roof icon over "House" text */}
+                    <span className="absolute -top-[11px] left-0 right-0 flex justify-center">
+                      <svg viewBox="0 0 40 12" className="w-[38px] h-2.5 text-[#FC4C56]" fill="currentColor">
+                        <path d="M2 10 L20 2 L38 10 H34 V12 H6 V10 Z" />
+                        <rect x="28" y="4" width="3" height="4" />
+                      </svg>
+                    </span>
+                    House
                   </span>
-                  <span className="text-[11px] font-medium leading-none tracking-wider text-white/95 mt-0.5">
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="h-[1px] w-5 sm:w-7 bg-white/40"></div>
+                  <span className="text-[7.5px] sm:text-[9.5px] font-extrabold tracking-[0.22em] text-white/95 uppercase leading-none">
                     Bangladesh
                   </span>
+                  <div className="h-[1px] w-5 sm:w-7 bg-white/40"></div>
                 </div>
               </div>
             </Link>
