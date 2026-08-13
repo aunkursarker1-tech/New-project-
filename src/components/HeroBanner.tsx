@@ -19,8 +19,6 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   onAddToCart,
   onSelectCategory,
 }) => {
-  const [activeSlide, setActiveSlide] = useState(0);
-
   // Products linked from mockData for high-fidelity interactive actions
   const haierProducts: Product[] = [
     {
@@ -156,7 +154,7 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
   };
 
   const hisenseProduct: Product = {
-    id: 'hisense-ac-15',
+    id: 'hisense-ac-1',
     name: 'Hisense 1.5 Ton Split Inverter AC',
     brand: 'Hisense',
     category: 'Air Conditioner',
@@ -177,202 +175,60 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
     tags: []
   };
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % 2);
-    }, 10000);
-    return () => clearInterval(timer);
-  }, []);
-
   return (
     <section className="space-y-3 pt-2 pb-2 px-3 sm:px-4 max-w-7xl mx-auto">
-      {/* SECTION 1: MAIN SLIDER BANNER */}
-      <div className="relative rounded-xl overflow-hidden shadow-sm border border-slate-200/60 dark:border-slate-800 bg-[#FAF9F6] dark:bg-slate-900 min-h-[350px] flex flex-col justify-between">
+      {/* SECTION 1: COMPACT HERO BANNER */}
+      <div className="relative rounded-xl overflow-hidden shadow-sm border border-slate-200/60 dark:border-slate-800 bg-gradient-to-br from-[#0a0f26] to-[#12193b] text-white p-4 sm:p-5 flex flex-col gap-3">
         
-        {/* Slide 1: Haier AC Fest with bright blue layout and horizontal cards side-by-side on mobile */}
-        <div className={`transition-opacity duration-700 w-full h-full p-2.5 sm:p-4 flex flex-col justify-between bg-gradient-to-r from-[#037dfc] via-[#108ffc] to-[#0158bc] text-white ${activeSlide === 0 ? 'block opacity-100' : 'hidden opacity-0 pointer-events-none'}`}>
-          <div className="flex items-center justify-between gap-3 mb-1.5 px-1">
-            <div>
-              <h2 className="text-xs sm:text-base font-extrabold text-white tracking-tight uppercase">
-                Haier Air Conditioners
-              </h2>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-extrabold text-[8px] sm:text-[9px] uppercase tracking-wider">
+              <Star className="w-2.5 h-2.5 text-emerald-400" />
+              <span>SAMSUNG OFFICIAL OFFER</span>
             </div>
-            
-            <div className="flex gap-1.5">
-              <div className="bg-black/80 text-white font-black text-[7px] sm:text-[9px] px-2 py-0.5 rounded flex items-center gap-0.5">
-                <span>⚡</span> FREE INSTALLATION
-              </div>
-              <div className="bg-[#007A58] text-white font-black text-[7px] sm:text-[9px] px-2 py-0.5 rounded flex items-center gap-0.5">
-                <span>🛡️</span> 5 YEARS WARRANTY
-              </div>
-            </div>
+            <h2 className="text-base sm:text-xl font-black text-white mt-1 tracking-tight">
+              Samsung TV Fest
+            </h2>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
+              পছন্দের স্যামসাং ক্রিস্টাল UHD ৪কে টিভি এখন অফিসিয়াল ওয়ারেন্টি ও ক্যাশব্যাক অফারে!
+            </p>
           </div>
-
-          {/* AC horizontal cards display - always 3 columns to match the screenshot perfectly */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 mt-1">
-            {haierProducts.map((ac, idx) => {
-              // Custom series names for perfect representation like screenshot
-              const seriesNames = ['CleanCool Pro', 'AntirustCool', 'UltimateCool'];
-              const modelNumbers = [
-                'MODEL: HSU-19CLEANCOOL(INV)(PRO)',
-                'MODEL: 19ANTIRUSTCOOL(INV)(PRO)',
-                'MODEL: HSU-19ULTIMATECOOL(INV)'
-              ];
-              const seriesName = seriesNames[idx] || 'Inverter Pro';
-              const modelNumber = modelNumbers[idx] || 'MODEL: HSU-19CLEANCOOL';
-
-              return (
-                <div key={ac.id} className="bg-white text-slate-900 p-1.5 sm:p-2.5 rounded border border-white/20 shadow-sm flex flex-col justify-between relative group">
-                  <span className="absolute top-1 right-1 bg-amber-500 text-white text-[6px] sm:text-[8px] font-bold px-1 rounded scale-90 sm:scale-100">
-                    OFFICIAL
-                  </span>
-                  
-                  <div className="flex flex-col items-center">
-                    {/* AC unit image centered */}
-                    <div className="w-full h-8 sm:h-12 flex items-center justify-center p-0.5 mb-1 bg-slate-50 rounded">
-                      <img src={ac.image} alt={ac.name} className="max-h-full max-w-full object-contain" />
-                    </div>
-                    
-                    <div className="text-center w-full">
-                      <span className="text-[7px] sm:text-[9px] text-[#007A58] font-bold block">
-                        Haier 1.6 Ton
-                      </span>
-                      
-                      {/* Series name blue block matching screenshot */}
-                      <div className="bg-[#0e75ec] text-white font-black text-[7px] sm:text-[10px] py-0.5 px-1 rounded-sm tracking-wide uppercase my-0.5 truncate">
-                        {seriesName}
-                      </div>
-                      
-                      <span className="text-[6px] sm:text-[8px] text-blue-900 font-bold block uppercase tracking-tight">
-                        INVERTER PRO AC
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-1 sm:mt-2 pt-1 border-t border-slate-100 w-full">
-                    <div className="text-center">
-                      <span className="text-[6px] sm:text-[8px] text-slate-500 font-semibold block leading-none">
-                        MRP: ৳{ac.originalPrice.toLocaleString()}
-                      </span>
-                      
-                      {/* Prominent dark blue price box matching screenshot */}
-                      <div className="bg-[#0d1e4c] text-white font-black text-[8px] sm:text-xs py-0.5 rounded mt-0.5 text-center">
-                        ৳{ac.price.toLocaleString()}
-                      </div>
-                    </div>
-
-                    {/* Model Number at the bottom */}
-                    <span className="text-[5px] sm:text-[7.5px] text-slate-400 font-mono text-center block mt-1 truncate">
-                      {modelNumber}
-                    </span>
-                  </div>
-
-                  {/* Add to Bag on Hover/Interactive action */}
-                  <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onQuickView?.(ac); }}
-                      className="p-1 rounded bg-white text-slate-800 shadow hover:text-[#007A58]"
-                    >
-                      <Eye className="w-3 h-3" />
-                    </button>
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onAddToCart?.(ac); }}
-                      className="p-1 rounded bg-[#007A58] text-white shadow hover:bg-emerald-700"
-                    >
-                      <PlusCircle className="w-3 h-3" />
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+          
+          <div className="bg-[#007A58] text-white font-black text-[9px] sm:text-[10px] px-2.5 py-1 rounded shadow shrink-0 self-start sm:self-auto">
+            🔥 Best Price Guaranteed
           </div>
         </div>
 
-        {/* Slide 2: Samsung TV Fest with deep violet luxury background */}
-        <div className={`transition-opacity duration-700 w-full h-full p-4 sm:p-5 flex flex-col justify-between bg-gradient-to-br from-[#0a0f26] to-[#12193b] text-white ${activeSlide === 1 ? 'block opacity-100' : 'hidden opacity-0 pointer-events-none'}`}>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
-            <div>
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-extrabold text-[8px] sm:text-[9px] uppercase tracking-wider">
-                <Star className="w-2.5 h-2.5 text-emerald-400" />
-                <span>SAMSUNG OFFICIAL OFFER</span>
-              </div>
-              <h2 className="text-base sm:text-xl font-black text-white mt-1 tracking-tight">
-                Samsung TV Fest
-              </h2>
-              <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
-                পছন্দের স্যামসাং ক্রিস্টাল UHD ৪কে টিভি এখন অফিসিয়াল ওয়ারেন্টি ও ক্যাশব্যাক অফারে!
-              </p>
-            </div>
-            
-            <div className="bg-[#007A58] text-white font-black text-[9px] sm:text-[10px] px-2.5 py-1 rounded shadow self-start sm:self-auto">
-              🔥 Best Price Guaranteed
-            </div>
-          </div>
-
-          {/* TV cards display */}
-          <div className="grid grid-cols-2 gap-2 mt-1 w-full max-w-3xl mx-auto">
-            {samsungProducts.map((tv) => (
-              <div key={tv.id} className="bg-white/10 backdrop-blur-md p-2 rounded border border-white/5 shadow-sm hover:shadow-md transition-all flex items-center justify-between relative group text-white">
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-white/5 flex items-center justify-center p-1 shrink-0">
-                    <img src={tv.image} alt={tv.name} className="max-h-full max-w-full object-contain" />
-                  </div>
-                  <div>
-                    <h4 className="text-[9px] sm:text-[11px] font-bold text-white group-hover:text-emerald-400 transition-colors leading-tight line-clamp-1">
-                      {tv.name}
-                    </h4>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-[10px] sm:text-xs font-black text-emerald-400">৳{tv.price.toLocaleString()}</span>
-                      <span className="text-[8px] line-through text-slate-400">৳{tv.originalPrice.toLocaleString()}</span>
-                    </div>
+        {/* TV cards display */}
+        <div className="grid grid-cols-2 gap-2 mt-1 w-full">
+          {samsungProducts.map((tv) => (
+            <div key={tv.id} className="bg-white/10 backdrop-blur-md p-2 rounded border border-white/5 shadow-sm hover:shadow-md transition-all flex items-center justify-between relative group text-white">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded bg-white/5 flex items-center justify-center p-1 shrink-0">
+                  <img src={tv.image} alt={tv.name} className="max-h-full max-w-full object-contain" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-[9px] sm:text-[11px] font-bold text-white group-hover:text-emerald-400 transition-colors leading-tight line-clamp-1">
+                    {tv.name}
+                  </h4>
+                  <div className="flex items-baseline gap-1 mt-0.5 flex-wrap">
+                    <span className="text-[10px] sm:text-xs font-black text-emerald-400">৳{tv.price.toLocaleString()}</span>
+                    <span className="text-[8px] line-through text-slate-300">৳{tv.originalPrice.toLocaleString()}</span>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-1 z-10">
-                  <button 
-                    onClick={() => onAddToCart?.(tv)}
-                    className="p-1 rounded bg-[#007A58] hover:bg-emerald-700 text-white transition-colors"
-                    title="Add to Bag"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5" />
-                  </button>
-                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Carousel indicators & manual triggers */}
-        <div className="p-2 border-t border-slate-100/10 flex items-center justify-between bg-black/20 backdrop-blur-sm">
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveSlide(0)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeSlide === 0 ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
-              title="Haier AC Slide"
-            />
-            <button
-              onClick={() => setActiveSlide(1)}
-              className={`h-1.5 rounded-full transition-all duration-300 ${activeSlide === 1 ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
-              title="Samsung TV Slide"
-            />
-          </div>
-
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => setActiveSlide((prev) => (prev === 0 ? 1 : 0))}
-              className="p-1 rounded bg-black/40 hover:bg-black/60 text-white border border-white/10"
-              title="Previous Slide"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setActiveSlide((prev) => (prev + 1) % 2)}
-              className="p-1 rounded bg-black/40 hover:bg-black/60 text-white border border-white/10"
-              title="Next Slide"
-            >
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
+              <div className="flex items-center gap-1 z-10 shrink-0">
+                <button 
+                  onClick={() => onAddToCart?.(tv)}
+                  className="p-1 rounded bg-[#007A58] hover:bg-emerald-700 text-white transition-colors"
+                  title="Add to Bag"
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
