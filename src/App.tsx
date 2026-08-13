@@ -24,6 +24,17 @@ import { RecentlyViewedAndRecommendations } from './components/RecentlyViewedAnd
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { ToastContainer, ToastMessage } from './components/Toast';
 
+// Redesigned Pages Imports
+import { ShopView } from './components/ShopView';
+import { ProductDetailView } from './components/ProductDetailView';
+import { CartView } from './components/CartView';
+import { WishlistView } from './components/WishlistView';
+import { CompareView } from './components/CompareView';
+import { TrackOrderView } from './components/TrackOrderView';
+import { CustomerLoginView } from './components/CustomerLoginView';
+import { AccountView } from './components/AccountView';
+import { OnePageCheckout } from './components/checkout/OnePageCheckout';
+
 import {
   INITIAL_CATEGORIES,
   INITIAL_PRODUCTS,
@@ -45,7 +56,7 @@ export default function App() {
   const isAdminRoute = location.pathname.startsWith('/admin');
 
   // Theme & Intro State
-  const [darkMode, setDarkMode] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [showWelcomeScreen, setShowWelcomeScreen] = useState(false);
 
   // Data Collections (Persistent in LocalStorage)
@@ -119,6 +130,32 @@ export default function App() {
     const saved = localStorage.getItem('gadgetghor_compare');
     return saved ? JSON.parse(saved) : [];
   });
+
+  // Customer authentication states
+  const [customerName, setCustomerName] = useState<string | null>(() => {
+    return localStorage.getItem('gadget_customer_name');
+  });
+  const [customerPhone, setCustomerPhone] = useState<string | null>(() => {
+    return localStorage.getItem('gadget_customer_phone');
+  });
+
+  const handleCustomerLogin = (name: string, phone: string) => {
+    setCustomerName(name);
+    setCustomerPhone(phone);
+    localStorage.setItem('gadget_customer_name', name);
+    localStorage.setItem('gadget_customer_phone', phone);
+    addToast('success', 'Logged In Successfully!', `Welcome back, ${name}.`);
+    navigate('/account');
+  };
+
+  const handleCustomerLogout = () => {
+    setCustomerName(null);
+    setCustomerPhone(null);
+    localStorage.removeItem('gadget_customer_name');
+    localStorage.removeItem('gadget_customer_phone');
+    addToast('info', 'Logged Out', 'You have been safely logged out of your workspace.');
+    navigate('/');
+  };
 
   // Coupons
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
@@ -577,7 +614,7 @@ export default function App() {
       <Route
         path="/*"
         element={
-          <div className={`min-h-screen transition-colors duration-300 font-sans ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900'}`}>
+          <div className={`min-h-screen pb-16 lg:pb-0 transition-colors duration-300 font-sans ${darkMode ? 'bg-slate-950 text-slate-100' : 'bg-white text-slate-900'}`}>
             {/* Premium Welcome Screen Overlay on Load/Refresh */}
             {showWelcomeScreen && (
               <WelcomeScreen onComplete={() => setShowWelcomeScreen(false)} />
@@ -587,316 +624,481 @@ export default function App() {
             <ToastContainer toasts={toasts} onClose={removeToast} />
 
             {/* Main Reactive Header */}
-      <Header
-        darkMode={darkMode}
-        setDarkMode={setDarkMode}
-        cartCount={cartCount}
-        cartTotal={cartTotal}
-        wishlistCount={wishlistIds.length}
-        compareCount={compareIds.length}
-        onOpenCart={() => setIsCartOpen(true)}
-        onOpenWishlist={() => setIsWishlistOpen(true)}
-        onOpenCompare={() => setIsCompareOpen(true)}
-        onOpenOrderTracking={() => {
-          setTrackingTargetOrderId('');
-          setIsOrderTrackingOpen(true);
-        }}
-        selectedCategory={selectedCategory}
-        onSelectCategory={(cat) => {
-          setSelectedCategory(cat);
-          setTagFilter('');
-        }}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        allProducts={products}
-        onSelectProduct={(p) => setSelectedProductDetail(p)}
-        onNavigateHome={() => {
-          setSelectedCategory('All');
-          setTagFilter('');
-          setSearchQuery('');
-        }}
-        onNavigateProducts={(tag) => {
-          if (tag) setTagFilter(tag);
-          setSelectedCategory('All');
-        }}
-      />
-
-      {/* Main Page Layout */}
-      <main className="pb-12">
-        {/* Hero Carousel Banner */}
-        {selectedCategory === 'All' && !tagFilter && !searchQuery && (
-          <HeroBanner
-            darkMode={darkMode}
-            onNavigateProducts={(tag) => setTagFilter(tag || 'flash-sale')}
-            onOpenGiftBoxes={() => setSelectedCategory('Gift Boxes')}
-          />
-        )}
-
-        {/* Product Categories Grid */}
-        {selectedCategory === 'All' && !tagFilter && !searchQuery && (
-          <CategoryGrid
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-            darkMode={darkMode}
-          />
-        )}
-
-        {/* Flash Sale Banner Section */}
-        {selectedCategory === 'All' && !tagFilter && !searchQuery && (
-          <FlashSaleSection
-            products={products}
-            darkMode={darkMode}
-            onAddToCart={handleAddToCart}
-            onAddToWishlist={handleToggleWishlist}
-            onAddToCompare={handleToggleCompare}
-            onQuickView={(p) => setSelectedProductDetail(p)}
-            wishlistIds={wishlistIds}
-            compareIds={compareIds}
-          />
-        )}
-
-        {/* Active Filter Bar Header */}
-        <div className="pt-8 px-4 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-400">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>
-                {selectedCategory !== 'All'
-                  ? selectedCategory
-                  : tagFilter
-                  ? tagFilter.toUpperCase().replace('-', ' ')
-                  : 'CURATED CATALOG'}
-              </span>
-            </div>
-            <h2 className={`text-2xl sm:text-3xl font-extrabold mt-0.5 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
-              {searchQuery
-                ? `Search Results for "${searchQuery}"`
-                : selectedCategory !== 'All'
-                ? `${selectedCategory} Collection`
-                : tagFilter === 'flash-sale'
-                ? '⚡ 24 Hours Flash Deals'
-                : tagFilter === 'best-sellers'
-                ? '🏆 Best Selling Gadgets in BD'
-                : tagFilter === 'new-arrivals'
-                ? '✨ New Arrival Tech'
-                : 'Featured Authentic Products'}
-            </h2>
-          </div>
-
-          {/* Quick Tag Pills */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            <button
-              onClick={() => {
+            <Header
+              darkMode={darkMode}
+              setDarkMode={setDarkMode}
+              cartCount={cartCount}
+              cartTotal={cartTotal}
+              wishlistCount={wishlistIds.length}
+              compareCount={compareIds.length}
+              selectedCategory={selectedCategory}
+              onSelectCategory={(cat) => {
+                setSelectedCategory(cat);
+                setTagFilter('');
+              }}
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              allProducts={products}
+              onSelectProduct={(p) => setSelectedProductDetail(p)}
+              onNavigateHome={() => {
                 setSelectedCategory('All');
                 setTagFilter('');
                 setSearchQuery('');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all ${
-                selectedCategory === 'All' && !tagFilter && !searchQuery
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                  : 'bg-slate-800/60 border-slate-700 text-slate-300 hover:text-white'
-              }`}
-            >
-              All Items
-            </button>
-            <button
-              onClick={() => {
-                setTagFilter('flash-sale');
+              onNavigateProducts={(tag) => {
+                if (tag) setTagFilter(tag);
                 setSelectedCategory('All');
               }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 ${
-                tagFilter === 'flash-sale'
-                  ? 'bg-rose-600 text-white border-rose-500'
-                  : 'bg-slate-800/60 border-slate-700 text-rose-400'
-              }`}
-            >
-              <Zap className="w-3.5 h-3.5" /> Flash Deals
-            </button>
-            <button
-              onClick={() => {
-                setTagFilter('best-sellers');
-                setSelectedCategory('All');
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 ${
-                tagFilter === 'best-sellers'
-                  ? 'bg-emerald-500 text-slate-950 border-emerald-400'
-                  : 'bg-slate-800/60 border-slate-700 text-emerald-400'
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5" /> Best Sellers
-            </button>
-          </div>
-        </div>
+              customerName={customerName}
+              onLogout={handleCustomerLogout}
+            />
 
-        {/* Main Product Catalog Grid */}
-        <div className="py-6 px-3 sm:px-4 lg:px-6 max-w-7xl mx-auto">
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4 lg:gap-5">
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  darkMode={darkMode}
-                  onAddToCart={handleAddToCart}
-                  onAddToWishlist={handleToggleWishlist}
-                  onAddToCompare={handleToggleCompare}
-                  onQuickView={(p) => setSelectedProductDetail(p)}
-                  onBuyNow={(p) => handleBuyNow(p)}
-                  isWishlisted={wishlistIds.includes(product.id)}
-                  isCompared={compareIds.includes(product.id)}
+            {/* Subpages routes */}
+            <main className="pb-12 min-h-[calc(100vh-450px)]">
+              <Routes>
+                {/* Default Homepage Route */}
+                <Route
+                  path="/"
+                  element={
+                    <>
+                      {selectedCategory === 'All' && !tagFilter && !searchQuery && (
+                        <HeroBanner
+                          darkMode={darkMode}
+                          onNavigateProducts={(tag) => setTagFilter(tag || 'flash-sale')}
+                          onOpenGiftBoxes={() => setSelectedCategory('Gift Boxes')}
+                          onQuickView={(p) => setSelectedProductDetail(p)}
+                          onAddToCart={handleAddToCart}
+                          onSelectCategory={(cat) => setSelectedCategory(cat)}
+                        />
+                      )}
+
+                      {selectedCategory === 'All' && !tagFilter && !searchQuery && (
+                        <CategoryGrid
+                          categories={categories}
+                          selectedCategory={selectedCategory}
+                          onSelectCategory={setSelectedCategory}
+                          darkMode={darkMode}
+                        />
+                      )}
+
+                      {selectedCategory === 'All' && !tagFilter && !searchQuery && (
+                        <FlashSaleSection
+                          products={products}
+                          darkMode={darkMode}
+                          onAddToCart={handleAddToCart}
+                          onAddToWishlist={handleToggleWishlist}
+                          onAddToCompare={handleToggleCompare}
+                          onQuickView={(p) => setSelectedProductDetail(p)}
+                          wishlistIds={wishlistIds}
+                          compareIds={compareIds}
+                        />
+                      )}
+
+                      {/* Active Filter Bar Header */}
+                      <div className="pt-4 px-3 sm:px-4 max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#007A58]">
+                            <SlidersHorizontal className="w-3 h-3" />
+                            <span>
+                              {selectedCategory !== 'All'
+                                ? selectedCategory
+                                : tagFilter
+                                ? tagFilter.toUpperCase().replace('-', ' ')
+                                : 'CURATED CATALOG'}
+                            </span>
+                          </div>
+                          <h2 className={`text-base sm:text-lg font-black mt-0.5 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                            {searchQuery
+                              ? `Search Results for "${searchQuery}"`
+                              : selectedCategory !== 'All'
+                              ? `${selectedCategory} Collection`
+                              : tagFilter === 'flash-sale'
+                              ? '⚡ 24 Hours Flash Deals'
+                              : tagFilter === 'best-sellers'
+                              ? '🏆 Best Selling Gadgets in BD'
+                              : tagFilter === 'new-arrivals'
+                              ? '✨ New Arrival Tech'
+                              : 'Featured Authentic Products'}
+                          </h2>
+                        </div>
+
+                        {/* Quick Tag Pills */}
+                        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                          <button
+                            onClick={() => {
+                              setSelectedCategory('All');
+                              setTagFilter('');
+                              setSearchQuery('');
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                              selectedCategory === 'All' && !tagFilter && !searchQuery
+                                ? 'bg-[#007A58] text-white border-[#007A58]'
+                                : 'bg-slate-800/20 border-slate-700/30 text-slate-700 dark:text-slate-300 hover:text-emerald-600'
+                            }`}
+                          >
+                            All Items
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTagFilter('flash-sale');
+                              setSelectedCategory('All');
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${
+                              tagFilter === 'flash-sale'
+                                ? 'bg-rose-600 text-white border-rose-500'
+                                : 'bg-rose-500/10 border-rose-500/20 text-rose-600'
+                            }`}
+                          >
+                            <Zap className="w-3 h-3" /> Flash Deals
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTagFilter('best-sellers');
+                              setSelectedCategory('All');
+                            }}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${
+                              tagFilter === 'best-sellers'
+                                ? 'bg-[#007A58] text-white border-[#006246]'
+                                : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600'
+                            }`}
+                          >
+                            <Tag className="w-3 h-3" /> Best Sellers
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Main Product Catalog Grid */}
+                      <div className="py-3 px-3 sm:px-4 max-w-7xl mx-auto">
+                        {filteredProducts.length > 0 ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-3.5">
+                            {filteredProducts.map((product) => (
+                              <ProductCard
+                                key={product.id}
+                                product={product}
+                                darkMode={darkMode}
+                                onAddToCart={handleAddToCart}
+                                onAddToWishlist={handleToggleWishlist}
+                                onAddToCompare={handleToggleCompare}
+                                onQuickView={(p) => setSelectedProductDetail(p)}
+                                onBuyNow={(p) => handleBuyNow(p)}
+                                isWishlisted={wishlistIds.includes(product.id)}
+                                isCompared={compareIds.includes(product.id)}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className={`text-center py-16 p-8 rounded-3xl border space-y-3 ${
+                            darkMode ? 'bg-slate-900/40 border-slate-800' : 'bg-[#F8F9FA] border-[#E5E7EB]'
+                          }`}>
+                            <Sparkles className="w-12 h-12 text-slate-400 mx-auto" />
+                            <h3 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-[#111827]'}`}>No products found</h3>
+                            <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-[#6B7280]'}`}>
+                              Try clearing your search query or selecting a different category.
+                            </p>
+                            <button
+                              onClick={() => {
+                                setSelectedCategory('All');
+                                setTagFilter('');
+                                setSearchQuery('');
+                              }}
+                              className="px-4 py-2 rounded-xl bg-[#007A58] text-white font-bold text-xs hover:bg-emerald-700 transition-colors"
+                            >
+                              Reset Catalog Filters
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Smart Recommendations & Recently Viewed */}
+                      <RecentlyViewedAndRecommendations
+                        darkMode={darkMode}
+                        products={products}
+                        onAddToCart={handleAddToCart}
+                        onAddToWishlist={handleToggleWishlist}
+                        onAddToCompare={handleToggleCompare}
+                        onQuickView={(p) => setSelectedProductDetail(p)}
+                        onBuyNow={(p) => handleBuyNow(p)}
+                        wishlistIds={wishlistIds}
+                        compareIds={compareIds}
+                      />
+
+                      {/* Customer Reviews Showcase */}
+                      <CustomerReviewsSection reviews={reviews} darkMode={darkMode} />
+
+                      {/* Authorized Brand Showcase */}
+                      <BrandShowcase
+                        darkMode={darkMode}
+                        onSelectBrand={(b) => {
+                          setSearchQuery(b);
+                          setSelectedCategory('All');
+                        }}
+                      />
+
+                      {/* Newsletter Promo Banner */}
+                      <Newsletter darkMode={darkMode} />
+                    </>
+                  }
                 />
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-16 p-8 rounded-3xl bg-slate-900/40 border border-slate-800 space-y-3">
-              <Sparkles className="w-12 h-12 text-slate-500 mx-auto" />
-              <h3 className="text-lg font-bold text-white">No products found</h3>
-              <p className="text-xs text-slate-400">
-                Try clearing your search query or selecting a different category.
-              </p>
-              <button
-                onClick={() => {
-                  setSelectedCategory('All');
-                  setTagFilter('');
-                  setSearchQuery('');
-                }}
-                className="px-4 py-2 rounded-xl bg-emerald-500 text-slate-950 font-bold text-xs"
-              >
-                Reset Catalog Filters
-              </button>
-            </div>
-          )}
-        </div>
 
-        {/* Smart Recommendations & Recently Viewed */}
-        <RecentlyViewedAndRecommendations
-          darkMode={darkMode}
-          products={products}
-          onAddToCart={handleAddToCart}
-          onAddToWishlist={handleToggleWishlist}
-          onAddToCompare={handleToggleCompare}
-          onQuickView={(p) => setSelectedProductDetail(p)}
-          onBuyNow={(p) => handleBuyNow(p)}
-          wishlistIds={wishlistIds}
-          compareIds={compareIds}
-        />
+                {/* Redesigned Dedicated Pages */}
+                <Route
+                  path="/shop"
+                  element={
+                    <ShopView
+                      products={products}
+                      darkMode={darkMode}
+                      onAddToCart={handleAddToCart}
+                      onAddToWishlist={handleToggleWishlist}
+                      onAddToCompare={handleToggleCompare}
+                      onQuickView={(p) => setSelectedProductDetail(p)}
+                      onBuyNow={(p) => handleBuyNow(p)}
+                      wishlistIds={wishlistIds}
+                      compareIds={compareIds}
+                      selectedCategory={selectedCategory}
+                      onSelectCategory={setSelectedCategory}
+                      searchQuery={searchQuery}
+                      onSearchChange={setSearchQuery}
+                      initialTagFilter={tagFilter}
+                    />
+                  }
+                />
 
-        {/* Customer Reviews Showcase */}
-        <CustomerReviewsSection reviews={reviews} darkMode={darkMode} />
+                <Route
+                  path="/product/:id"
+                  element={
+                    <ProductDetailView
+                      products={products}
+                      darkMode={darkMode}
+                      onAddToCart={handleAddToCart}
+                      onBuyNow={handleBuyNow}
+                      onAddToWishlist={handleToggleWishlist}
+                      onAddToCompare={handleToggleCompare}
+                      wishlistIds={wishlistIds}
+                      compareIds={compareIds}
+                    />
+                  }
+                />
 
-        {/* Authorized Brand Showcase */}
-        <BrandShowcase
-          darkMode={darkMode}
-          onSelectBrand={(b) => {
-            setSearchQuery(b);
-            setSelectedCategory('All');
-          }}
-        />
+                <Route
+                  path="/cart"
+                  element={
+                    <CartView
+                      cartItems={cartItems}
+                      darkMode={darkMode}
+                      onUpdateQuantity={handleUpdateQuantity}
+                      onRemoveItem={handleRemoveCartItem}
+                      onApplyCoupon={async (code) => {
+                        const found = coupons.find((c) => c.code.toUpperCase() === code.toUpperCase());
+                        if (found) {
+                          setAppliedCoupon(found);
+                          return true;
+                        }
+                        return false;
+                      }}
+                      appliedCoupon={appliedCoupon}
+                      onProceedToCheckout={() => navigate('/checkout')}
+                    />
+                  }
+                />
 
-        {/* Newsletter Promo Banner */}
-        <Newsletter darkMode={darkMode} />
-      </main>
+                <Route
+                  path="/wishlist"
+                  element={
+                    <WishlistView
+                      wishlistProducts={wishlistProducts}
+                      darkMode={darkMode}
+                      onAddToCart={handleAddToCart}
+                      onRemoveFromWishlist={handleToggleWishlist}
+                      onQuickView={(p) => setSelectedProductDetail(p)}
+                    />
+                  }
+                />
 
-      {/* Footer Section */}
-      <Footer
-        darkMode={darkMode}
-        onNavigateCategory={(cat) => setSelectedCategory(cat)}
-        onOpenOrderTracking={() => setIsOrderTrackingOpen(true)}
-        onReplayIntro={() => setShowWelcomeScreen(true)}
-      />
+                <Route
+                  path="/compare"
+                  element={
+                    <CompareView
+                      compareProducts={compareProducts}
+                      darkMode={darkMode}
+                      onAddToCart={handleAddToCart}
+                      onRemoveFromCompare={(p) => setCompareIds((prev) => prev.filter((id) => id !== p.id))}
+                    />
+                  }
+                />
 
-      {/* Floating Support Chat Widget */}
-      <LiveChatWidget darkMode={darkMode} />
+                <Route
+                  path="/track-order"
+                  element={
+                    <TrackOrderView
+                      orders={orders}
+                      darkMode={darkMode}
+                      initialOrderId={trackingTargetOrderId}
+                    />
+                  }
+                />
 
-      {/* Modals & Drawers */}
-      <ProductDetailModal
-        product={selectedProductDetail}
-        onClose={() => setSelectedProductDetail(null)}
-        darkMode={darkMode}
-        onAddToCart={handleAddToCart}
-        onBuyNow={handleBuyNow}
-        onAddToWishlist={handleToggleWishlist}
-        onAddToCompare={handleToggleCompare}
-        isWishlisted={selectedProductDetail ? wishlistIds.includes(selectedProductDetail.id) : false}
-        isCompared={selectedProductDetail ? compareIds.includes(selectedProductDetail.id) : false}
-        allReviews={reviews}
-        relatedProducts={
-          selectedProductDetail
-            ? products.filter(
-                (p) => p.category === selectedProductDetail.category && p.id !== selectedProductDetail.id
-              )
-            : []
-        }
-        onSelectProduct={(p) => setSelectedProductDetail(p)}
-      />
+                <Route
+                  path="/login"
+                  element={
+                    customerName ? (
+                      <Navigate to="/account" replace />
+                    ) : (
+                      <CustomerLoginView
+                        darkMode={darkMode}
+                        onLoginSuccess={handleCustomerLogin}
+                      />
+                    )
+                  }
+                />
 
-      <CartDrawer
-        isOpen={isCartOpen}
-        onClose={() => setIsCartOpen(false)}
-        cartItems={cartItems}
-        darkMode={darkMode}
-        onUpdateQuantity={handleUpdateQuantity}
-        onRemoveItem={handleRemoveCartItem}
-        coupons={coupons}
-        appliedCoupon={appliedCoupon}
-        onApplyCoupon={handleApplyCoupon}
-        onRemoveCoupon={() => setAppliedCoupon(null)}
-        onProceedToCheckout={() => {
-          setIsCartOpen(false);
-          setIsCheckoutOpen(true);
-        }}
-        deliveryDivision={deliveryDivision}
-        setDeliveryDivision={setDeliveryDivision}
-      />
+                <Route
+                  path="/account"
+                  element={
+                    customerName ? (
+                      <AccountView
+                        orders={orders}
+                        darkMode={darkMode}
+                        customerName={customerName}
+                        customerPhone={customerPhone || ''}
+                        onLogout={handleCustomerLogout}
+                        onTrackOrder={(orderId) => {
+                          setTrackingTargetOrderId(orderId);
+                          navigate('/track-order');
+                        }}
+                      />
+                    ) : (
+                      <Navigate to="/login" replace />
+                    )
+                  }
+                />
 
-      <CheckoutModal
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        cartItems={cartItems}
-        darkMode={darkMode}
-        appliedCoupon={appliedCoupon}
-        onOrderPlaced={handleOrderPlaced}
-        initialDivision={deliveryDivision}
-        onUpdateCartQuantity={handleUpdateQuantity}
-      />
+                <Route
+                  path="/checkout"
+                  element={
+                    <div className="py-6 max-w-7xl mx-auto px-4">
+                      <OnePageCheckout
+                        cartItems={cartItems}
+                        darkMode={darkMode}
+                        appliedCoupon={appliedCoupon}
+                        onOrderPlaced={(order) => {
+                          handleOrderPlaced(order);
+                          navigate('/account');
+                        }}
+                        onUpdateCartQuantity={handleUpdateQuantity}
+                        onClose={() => navigate('/cart')}
+                        initialDivision={deliveryDivision}
+                      />
+                    </div>
+                  }
+                />
+              </Routes>
+            </main>
 
-      <OrderSuccessModal
-        order={latestPlacedOrder}
-        onClose={() => setLatestPlacedOrder(null)}
-        darkMode={darkMode}
-        onTrackOrder={(orderId) => {
-          setTrackingTargetOrderId(orderId);
-          setIsOrderTrackingOpen(true);
-        }}
-      />
+            {/* Footer Section */}
+            <Footer
+              darkMode={darkMode}
+              onNavigateCategory={(cat) => setSelectedCategory(cat)}
+              onOpenOrderTracking={() => {
+                setTrackingTargetOrderId('');
+                navigate('/track-order');
+              }}
+              onOpenAdmin={() => navigate('/admin/dashboard')}
+            />
 
-      <OrderTrackingModal
-        isOpen={isOrderTrackingOpen}
-        onClose={() => setIsOrderTrackingOpen(false)}
-        orders={orders}
-        darkMode={darkMode}
-        initialOrderId={trackingTargetOrderId}
-      />
+            {/* Floating Support Chat Widget */}
+            <LiveChatWidget darkMode={darkMode} />
 
-      <ProductComparisonModal
-        isOpen={isCompareOpen}
-        onClose={() => setIsCompareOpen(false)}
-        compareProducts={compareProducts}
-        darkMode={darkMode}
-        onRemoveCompare={(id) => setCompareIds((prev) => prev.filter((i) => i !== id))}
-        onAddToCart={handleAddToCart}
-      />
+            {/* Modals & Drawers */}
+            <ProductDetailModal
+              product={selectedProductDetail}
+              onClose={() => setSelectedProductDetail(null)}
+              darkMode={darkMode}
+              onAddToCart={handleAddToCart}
+              onBuyNow={handleBuyNow}
+              onAddToWishlist={handleToggleWishlist}
+              onAddToCompare={handleToggleCompare}
+              isWishlisted={selectedProductDetail ? wishlistIds.includes(selectedProductDetail.id) : false}
+              isCompared={selectedProductDetail ? compareIds.includes(selectedProductDetail.id) : false}
+              allReviews={reviews}
+              relatedProducts={
+                selectedProductDetail
+                  ? products.filter(
+                      (p) => p.category === selectedProductDetail.category && p.id !== selectedProductDetail.id
+                    )
+                  : []
+              }
+              onSelectProduct={(p) => setSelectedProductDetail(p)}
+            />
 
-      <WishlistDrawer
-        isOpen={isWishlistOpen}
-        onClose={() => setIsWishlistOpen(false)}
-        wishlistProducts={wishlistProducts}
-        darkMode={darkMode}
-        onRemoveWishlist={(id) => setWishlistIds((prev) => prev.filter((i) => i !== id))}
-        onAddToCart={handleAddToCart}
-      />
-    </div>
+            <CartDrawer
+              isOpen={isCartOpen}
+              onClose={() => setIsCartOpen(false)}
+              cartItems={cartItems}
+              darkMode={darkMode}
+              onUpdateQuantity={handleUpdateQuantity}
+              onRemoveItem={handleRemoveCartItem}
+              coupons={coupons}
+              appliedCoupon={appliedCoupon}
+              onApplyCoupon={handleApplyCoupon}
+              onRemoveCoupon={() => setAppliedCoupon(null)}
+              onProceedToCheckout={() => {
+                setIsCartOpen(false);
+                navigate('/checkout');
+              }}
+              deliveryDivision={deliveryDivision}
+              setDeliveryDivision={setDeliveryDivision}
+            />
+
+            <CheckoutModal
+              isOpen={isCheckoutOpen}
+              onClose={() => setIsCheckoutOpen(false)}
+              cartItems={cartItems}
+              darkMode={darkMode}
+              appliedCoupon={appliedCoupon}
+              onOrderPlaced={(order) => {
+                handleOrderPlaced(order);
+                navigate('/account');
+              }}
+              initialDivision={deliveryDivision}
+              onUpdateCartQuantity={handleUpdateQuantity}
+            />
+
+            <OrderSuccessModal
+              order={latestPlacedOrder}
+              onClose={() => setLatestPlacedOrder(null)}
+              darkMode={darkMode}
+              onTrackOrder={(orderId) => {
+                setTrackingTargetOrderId(orderId);
+                navigate('/track-order');
+              }}
+            />
+
+            <OrderTrackingModal
+              isOpen={isOrderTrackingOpen}
+              onClose={() => setIsOrderTrackingOpen(false)}
+              orders={orders}
+              darkMode={darkMode}
+              initialOrderId={trackingTargetOrderId}
+            />
+
+            <ProductComparisonModal
+              isOpen={isCompareOpen}
+              onClose={() => setIsCompareOpen(false)}
+              compareProducts={compareProducts}
+              darkMode={darkMode}
+              onRemoveCompare={(id) => setCompareIds((prev) => prev.filter((i) => i !== id))}
+              onAddToCart={handleAddToCart}
+            />
+
+            <WishlistDrawer
+              isOpen={isWishlistOpen}
+              onClose={() => setIsWishlistOpen(false)}
+              wishlistProducts={wishlistProducts}
+              darkMode={darkMode}
+              onRemoveWishlist={(id) => setWishlistIds((prev) => prev.filter((i) => i !== id))}
+              onAddToCart={handleAddToCart}
+            />
+          </div>
         }
       />
     </Routes>

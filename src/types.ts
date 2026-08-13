@@ -4,7 +4,14 @@ export type CategoryType =
   | 'Smart Home Devices'
   | 'Desk Setup Accessories'
   | 'Gift Boxes'
-  | 'Audio Devices';
+  | 'Audio Devices'
+  | 'Television'
+  | 'Air Conditioner'
+  | 'Refrigerator'
+  | 'Deep Freezer'
+  | 'Washing Machine'
+  | 'Kitchen Appliances'
+  | 'Microwave Oven';
 
 export interface Product {
   id: string;

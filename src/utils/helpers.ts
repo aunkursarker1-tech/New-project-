@@ -1,10 +1,12 @@
 export function formatPrice(amount: number): string {
-  return `৳${amount.toLocaleString('en-IN')}`;
+  const val = typeof amount === 'number' ? amount : (Number(amount) || 0);
+  return `৳${val.toLocaleString('en-IN')}`;
 }
 
 export function formatPriceBn(amount: number): string {
   const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
-  const formatted = amount.toLocaleString('en-IN');
+  const val = typeof amount === 'number' ? amount : (Number(amount) || 0);
+  const formatted = val.toLocaleString('en-IN');
   return `৳${formatted.replace(/\d/g, (d) => bnDigits[parseInt(d)])}`;
 }
 

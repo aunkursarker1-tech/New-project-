@@ -56,28 +56,32 @@ export const RecentlyViewedAndRecommendations: React.FC<RecentlyViewedAndRecomme
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-      <div className={`p-6 rounded-3xl border shadow-xl ${
-        darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200'
+      <div className={`p-6 rounded-3xl border shadow-sm ${
+        darkMode ? 'bg-slate-900/60 border-slate-800' : 'bg-white border-slate-200/80'
       }`}>
         {/* Section Header with Tabs */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-6">
+        <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4 mb-6 ${
+          darkMode ? 'border-slate-800' : 'border-slate-100'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-lg">
+            <div className="p-2.5 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white shadow-md">
               <Sparkles className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-lg font-black tracking-tight text-slate-100">Smart Shopping Assistant</h2>
-              <p className="text-xs text-slate-400">Tailored AI Recommendations & Browsing History</p>
+              <h2 className={`text-lg font-black tracking-tight ${darkMode ? 'text-slate-100' : 'text-slate-900'}`}>Smart Shopping Assistant</h2>
+              <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Tailored AI Recommendations & Browsing History</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-950/60 p-1.5 rounded-2xl border border-slate-800 text-xs font-bold">
+          <div className={`flex items-center gap-1.5 p-1.5 rounded-2xl border text-xs font-bold ${
+            darkMode ? 'bg-slate-950/60 border-slate-800' : 'bg-slate-50 border-slate-200'
+          }`}>
             <button
               onClick={() => setActiveTab('recommendations')}
               className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                 activeTab === 'recommendations'
                   ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
+                  : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" /> AI Recommended
@@ -88,7 +92,7 @@ export const RecentlyViewedAndRecommendations: React.FC<RecentlyViewedAndRecomme
               className={`px-3.5 py-1.5 rounded-xl transition-all flex items-center gap-1.5 ${
                 activeTab === 'recently_viewed'
                   ? 'bg-purple-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white'
+                  : darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <History className="w-3.5 h-3.5" /> Recently Viewed ({recentlyViewedProducts.length})
@@ -123,45 +127,49 @@ export const RecentlyViewedAndRecommendations: React.FC<RecentlyViewedAndRecomme
         )}
       </div>
 
-      {/* Notify Back in Stock Modal */}
+      {/* Notify Back in Stock SMS Modal */}
       {notifyModalProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div onClick={() => setNotifyModalProduct(null)} className="fixed inset-0 bg-slate-950/80 backdrop-blur-md"></div>
-          <div className="relative w-full max-w-md rounded-3xl bg-slate-900 text-white p-6 border border-slate-800 shadow-2xl z-10 space-y-4">
+          <div onClick={() => setNotifyModalProduct(null)} className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm"></div>
+          <div className={`relative w-full max-w-md rounded-3xl p-6 border shadow-2xl z-10 space-y-4 ${
+            darkMode ? 'bg-slate-900 text-white border-slate-800' : 'bg-white text-slate-900 border-slate-200'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-amber-500/20 text-amber-400">
+              <div className="p-3 rounded-2xl bg-amber-500/15 text-amber-600">
                 <Bell className="w-6 h-6 animate-bounce" />
               </div>
               <div>
-                <h3 className="font-extrabold text-base">Back in Stock SMS Alert</h3>
-                <p className="text-xs text-slate-400">Get notified instantly when restocked</p>
+                <h3 className={`font-extrabold text-base ${darkMode ? 'text-white' : 'text-slate-900'}`}>Back in Stock SMS Alert</h3>
+                <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Get notified instantly when restocked</p>
               </div>
             </div>
 
             {notifySuccess ? (
-              <div className="p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 font-bold text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>Subscribed! We will SMS you the moment this item arrives in warehouse.</span>
               </div>
             ) : (
               <form onSubmit={handleNotifySubmit} className="space-y-3">
-                <p className="text-xs text-slate-300 font-bold">{notifyModalProduct.name}</p>
+                <p className={`text-xs font-bold ${darkMode ? 'text-slate-300' : 'text-slate-700'}`}>{notifyModalProduct.name}</p>
 
                 <div>
-                  <label className="block text-xs text-slate-400 mb-1">Mobile Phone Number (bKash/SMS)</label>
+                  <label className={`block text-xs mb-1 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>Mobile Phone Number (bKash/SMS)</label>
                   <input
                     type="tel"
                     required
                     placeholder="01712345678"
                     value={notifyPhone}
                     onChange={(e) => setNotifyPhone(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-2xl bg-slate-950 border border-slate-800 text-white text-xs font-mono"
+                    className={`w-full px-4 py-2.5 rounded-2xl text-xs font-mono border ${
+                      darkMode ? 'bg-slate-950 border-slate-800 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                    }`}
                   />
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-lg shadow-amber-500/20"
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 font-black text-xs shadow-md"
                 >
                   Notify Me First
                 </button>

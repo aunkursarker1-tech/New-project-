@@ -1,1 +1,50 @@
 @import "tailwindcss";
+
+@theme {
+  --color-primary: #007A58;
+  --color-secondary: #111827;
+  --color-background: #FFFFFF;
+  --color-light-background: #F8F9FA;
+  --color-text: #111827;
+  --color-muted-text: #6B7280;
+  --color-border: #E5E7EB;
+  --color-success: #16A34A;
+  --color-sale: #E31E24;
+
+  /* Force mapping of the primary color to brand green #007A58 */
+  --color-emerald-50: #f0fdf4;
+  --color-emerald-100: #dcfce7;
+  --color-emerald-200: #bbf7d0;
+  --color-emerald-300: #86efac;
+  --color-emerald-400: #4ade80;
+  --color-emerald-500: #007A58;
+  --color-emerald-600: #006246;
+  --color-emerald-700: #004d37;
+  --color-emerald-800: #003a29;
+  --color-emerald-900: #002c1f;
+  --color-emerald-950: #001912;
+
+  --color-teal-50: #f0fdfa;
+  --color-teal-100: #ccfbf1;
+  --color-teal-200: #99f6e4;
+  --color-teal-300: #5eead4;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #007A58;
+  --color-teal-600: #006246;
+  --color-teal-700: #004d37;
+  --color-teal-800: #003a29;
+  --color-teal-900: #002c1f;
+  --color-teal-950: #001912;
+}
+
+/* Ensure global HTML body uses the white background and dark text */
+html, body {
+  background-color: #FFFFFF !important;
+  color: #111827 !important;
+}
+
+/* Apply consistent brand border focus states */
+input:focus, select:focus, textarea:focus {
+  border-color: #007A58 !important;
+  outline: none !important;
+}
