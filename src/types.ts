@@ -53,6 +53,7 @@ export interface Category {
   image: string;
   itemCount: number;
   description: string;
+  iconUrl?: string;
 }
 
 export interface CartItem {
